@@ -373,10 +373,9 @@ See §11 for exactly what was built and what to do next.
 
 **What's deliberately not done, and why it needs a human/team, not more code:**
 
-- Nothing pushed to GitHub yet — this was a local-only checkout with no remote configured.
-  Next: push to `github.com/Youssefrajeh/Binary-Minds`, add the other two teammates as
-  collaborators, turn on branch protection for `main` (required PR review, required CI check)
-  in the repo's Settings → Branches.
+- Pushed to `github.com/Youssefrajeh/Binary-Minds` (`main`). Still needed: add the other two
+  teammates as collaborators, turn on branch protection for `main` (required PR review,
+  required CI check) in the repo's Settings → Branches.
 - No live Postgres — `DATABASE_URL` in `.env.example` is a placeholder. Someone needs to spin
   up a Neon or Supabase free-tier project, and the team needs to agree who owns that account.
   Once it exists: `npm run prisma:migrate -w apps/api -- --name init` runs the first migration
@@ -393,6 +392,51 @@ See §11 for exactly what was built and what to do next.
   Prisma schema yet — Prisma's schema DSL doesn't express Postgres full-text indexes directly;
   it needs a follow-up raw-SQL migration once the DB exists.
 
-**Next session should pick up at:** confirming the GitHub remote is pushed and protected, then
-starting sprint 1 (stories 1–5: registration, email OTP verification, login/logout, password
-reset, profile) against the scaffolded `apps/api`/`apps/web`/`packages/shared`.
+**2026-09-17 — Landing page design pass.** Replaced the placeholder health-check page with a
+real front end, built one screen at a time per the team's direction (frontend first, features
+added incrementally; senior-level visual design, no icon libraries, no seeded/fake data).
+
+- Design direction: leans into the product's own vernacular — campus classifieds, registrar
+  paperwork, a rubber ink stamp for "verified student" as the one signature element — rather
+  than a generic SaaS template. Paper/ink color system defined as CSS custom properties with a
+  `prefers-color-scheme: dark` variant, mapped into Tailwind v4 via `@theme` in
+  `apps/web/src/index.css`. Type system: Newsreader (display/serif, italic for the mission
+  statement), Source Sans 3 (body), Space Mono (tags, the wordmark, the stamp) — loaded via
+  Google Fonts in `apps/web/index.html`.
+- New components under `apps/web/src/components/`: `Nav`, `Hero`, `VerifiedStamp`, `Sections`,
+  `Footer`. `App.tsx` now composes these instead of the Vite starter template. Removed the
+  leftover Vite/React starter assets (`react.svg`, `vite.svg`, `hero.png`) and the dev-only
+  "API status" text that was on the old placeholder page — not something a real user should
+  see.
+- Copy is real, not placeholder: describes the three Release 1 surfaces (Marketplace, Lost &
+  Found, Campus Events) in plain, specific language, and the footer states outright that
+  CampusHub is unaffiliated with Fanshawe College — directly reflecting the institutional
+  branding risk in §5.1.
+- Verified in the browser at both the default (desktop) width and a stacked mobile width;
+  fixed one real bug along the way (`mix-blend-mode: multiply` on the verification stamp read
+  fine on the light background but made the stamp nearly invisible in dark mode — removed the
+  blend mode in favor of a plain solid border/text that works in both themes).
+- Typechecks clean (`npm run typecheck -w apps/web`). Not yet wired to any backend call —
+  the "Join with your Fanshawe email" button doesn't do anything yet.
+
+**Next screen:** the registration form (Story 1 — Fanshawe email + password), same
+one-screen-at-a-time approach. Wiring it to a real API call still needs the local dev database
+decision below to be made first (registration can't actually create a `User` row without one).
+
+**Still blocking real (non-UI) functionality — needs a decision, not more code:**
+
+- **Local dev database.** No Docker or local Postgres on this machine, and `DATABASE_URL` is
+  still a placeholder, so nothing can actually be persisted yet. Two options were raised and
+  not yet decided: (a) a free Neon/Supabase Postgres project — matches the stack in §8.1/ADR
+  0001 exactly, needs someone to create the account and hand over a connection string; or
+  (b) a temporary local SQLite database for dev/demo only, which would need `Profile.interests`
+  reworked from a Postgres array to a join table (SQLite/Prisma doesn't support array columns),
+  to be re-adapted before the real Postgres deploy. Pick one before building registration's
+  backend half.
+- No real email sent, no Vercel/Render deploy, no Word vision doc edits, no full-text index —
+  all still open from the sprint 0 pass above, unchanged.
+
+**Next session should pick up at:** deciding the local dev database (above), then building the
+registration screen's backend (Story 1: `POST /auth/register`, Fanshawe-domain check via
+`isAllowedDomain`, password hashing, `User` row) and wiring the front end to it, followed by
+Story 2 (OTP email verification) using the already-scaffolded `otp.ts`/`email.ts` helpers.

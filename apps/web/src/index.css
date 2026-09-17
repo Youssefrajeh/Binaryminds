@@ -1,6 +1,61 @@
 @import "tailwindcss";
 
+:root {
+  --paper: #f1eee4;
+  --ink: #15181d;
+  --ink-soft: #3a3c38;
+  --rule: #cfc9b8;
+  --pen: #1f3b8c;
+  --pen-dark: #16295e;
+  --stamp: #b33f1e;
+  --muted: #6b6656;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15161a;
+    --ink: #f1eee4;
+    --ink-soft: #c9c6ba;
+    --rule: #35362f;
+    --pen: #7f9cff;
+    --pen-dark: #a9beff;
+    --stamp: #e07a52;
+    --muted: #8c8877;
+  }
+}
+
+@theme {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-rule: var(--rule);
+  --color-pen: var(--pen);
+  --color-pen-dark: var(--pen-dark);
+  --color-stamp: var(--stamp);
+  --color-muted: var(--muted);
+
+  --font-display: "Newsreader", ui-serif, Georgia, serif;
+  --font-body: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+html,
+body {
+  background-color: var(--paper);
+}
+
 body {
   margin: 0;
-  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--pen);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--stamp);
+  color: var(--paper);
 }
