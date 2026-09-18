@@ -32,11 +32,10 @@ npm run dev:api     # http://localhost:4000
 npm run dev:web     # http://localhost:5173 (proxies /api to the api server)
 ```
 
-Once `DATABASE_URL` points at a real Postgres instance (Neon/Supabase free tier), run the
-first migration:
+`DATABASE_URL` points at a MongoDB Atlas cluster (free tier). Once it's set, push the schema:
 
 ```bash
-npm run prisma:migrate -w apps/api -- --name init
+npm run prisma:push -w apps/api
 ```
 
 ## Scripts (run from repo root)
