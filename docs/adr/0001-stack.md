@@ -2,6 +2,8 @@
 
 **Status:** proposed — confirm with the team in the sprint 0 stack meeting, then flip to accepted.
 **Date:** 2026-09-17
+**Amended:** 2026-09-17 — Database changed from PostgreSQL to MongoDB Atlas (see table below);
+Prisma stays as the ORM via its MongoDB connector.
 
 ## Context
 
@@ -16,7 +18,7 @@ records that constraint instead of a choice.
 | Frontend | React + Vite + TypeScript, Tailwind CSS v4 |
 | Backend | Node + Express + TypeScript |
 | ORM | Prisma |
-| Database | PostgreSQL (Neon or Supabase free tier) |
+| Database | MongoDB Atlas (free tier) |
 | Auth | Own JWT + email OTP |
 | Email | Resend (fallback: SendGrid) |
 | Images | Cloudinary free tier |
@@ -33,5 +35,9 @@ schedule.
 - `packages/shared` is the single source of truth for API request/response shapes — update it
   before changing an endpoint, not after.
 - Prisma migrations are reviewable in PRs, which matters for a team of three with no shared
-  codebase history.
+  codebase history. MongoDB has no SQL migration files — schema changes go through
+  `prisma db push` instead of `prisma migrate dev`, so there's no migration history to review,
+  only the `schema.prisma` diff.
+- MongoDB has no composite primary keys — join-table-style models (`Participant`, `Rsvp`) use
+  a generated `id` plus a `@@unique` compound index instead of a compound `@@id`.
 - Do not reopen this decision after week 6 (see plan §10).

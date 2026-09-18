@@ -236,7 +236,7 @@ things wearing a Fanshawe lanyard.
 | Frontend | React + Vite + TypeScript, Tailwind | Fast, familiar, one build tool |
 | Backend | Node + Express + TypeScript | Shares language and types with the frontend |
 | ORM | Prisma | Migrations are reviewable in PRs |
-| Database | PostgreSQL (Neon or Supabase free tier) | Relational data, real full-text search |
+| Database | MongoDB Atlas (free tier) | Team's chosen DB; Prisma's Mongo connector handles the schema |
 | Auth | Own JWT + email OTP | Verification logic must be yours; it's the differentiator |
 | Email | Resend or SendGrid | Free tier covers a class project |
 | Images | Cloudinary free tier | Resize and CDN for free |
@@ -330,10 +330,9 @@ demonstrably true on the deployed URL, not on localhost.
    [github.com/Youssefrajeh/Binary-Minds](https://github.com/Youssefrajeh/Binary-Minds),
    invite the other two teammates, and turn on branch protection for `main` in repo settings —
    none of that is possible from a local checkout.
-7. Write the Prisma schema from §8.2 and run the first migration. — **schema done**
-   (`apps/api/prisma/schema.prisma`, `prisma generate` passes). Migration itself is **not
-   run** — needs a real `DATABASE_URL` from a Neon/Supabase project, which is a team decision
-   (whose account, which region) not a coding task.
+7. Write the Prisma schema from §8.2 and run the first migration. — **done**
+   (`apps/api/prisma/schema.prisma`, MongoDB Atlas connector; `prisma generate` and
+   `prisma db push` both pass against a real Atlas cluster).
 8. Prove one email lands in a real `@fanshaweonline.ca` inbox. — **not done**. The send path
    is scaffolded (`apps/api/src/lib/email.ts`, `otp.ts`, dev-mode console fallback when no API
    key is set) but sending a real email needs a Resend/SendGrid account and a real inbox to
@@ -376,10 +375,8 @@ See §11 for exactly what was built and what to do next.
 - Pushed to `github.com/Youssefrajeh/Binary-Minds` (`main`). Still needed: add the other two
   teammates as collaborators, turn on branch protection for `main` (required PR review,
   required CI check) in the repo's Settings → Branches.
-- No live Postgres — `DATABASE_URL` in `.env.example` is a placeholder. Someone needs to spin
-  up a Neon or Supabase free-tier project, and the team needs to agree who owns that account.
-  Once it exists: `npm run prisma:migrate -w apps/api -- --name init` runs the first migration
-  for real.
+- ~~No live Postgres~~ — resolved 2026-09-17, see the later progress-log entry below (switched
+  to MongoDB Atlas).
 - No real email sent — `EMAIL_API_KEY` is a placeholder; the API logs the OTP to the console
   instead of sending. Someone needs a Resend (or SendGrid) account and a real
   `@fanshaweonline.ca` inbox to test against. This is explicitly called out in §5.2 as a High
@@ -389,8 +386,9 @@ See §11 for exactly what was built and what to do next.
 - The Word vision doc (§1) lives outside this repo and wasn't touched — items 1–4 above are
   still open.
 - Full-text index on `Listing.title`/`description` (mentioned in §8.2's notes) isn't in the
-  Prisma schema yet — Prisma's schema DSL doesn't express Postgres full-text indexes directly;
-  it needs a follow-up raw-SQL migration once the DB exists.
+  Prisma schema yet — now that the DB is MongoDB Atlas, this becomes an Atlas Search index
+  configured outside `schema.prisma` (Prisma's schema DSL doesn't express it directly), to be
+  set up once search is actually needed.
 
 **2026-09-17 — Landing page design pass.** Replaced the placeholder health-check page with a
 real front end, built one screen at a time per the team's direction (frontend first, features
@@ -419,24 +417,34 @@ added incrementally; senior-level visual design, no icon libraries, no seeded/fa
 - Typechecks clean (`npm run typecheck -w apps/web`). Not yet wired to any backend call —
   the "Join with your Fanshawe email" button doesn't do anything yet.
 
+**2026-09-17 — Dev database decided: MongoDB Atlas.** The team picked MongoDB Atlas (free
+tier) over the Neon/Supabase Postgres and local-SQLite options raised earlier — a deviation
+from §8.1/ADR 0001's original Postgres choice, now amended in both places.
+
+- `apps/api/prisma/schema.prisma` datasource switched from `postgresql` to `mongodb`. Every
+  model's `id` field gained `@map("_id")` (Mongo's required id mapping). `Participant` and
+  `Rsvp` — the two join-table models — lost their compound `@@id([...])` (MongoDB doesn't
+  support composite primary keys) in favor of a generated `id` plus an equivalent
+  `@@unique([...])` constraint; everything else in the schema (including
+  `Profile.interests String[]`, which Mongo stores natively) needed no change.
+- `apps/api/.env` (gitignored, not committed) now holds a real Atlas `DATABASE_URL`;
+  `.env.example` updated to show the `mongodb+srv://` shape instead of `postgresql://`.
+- Verified for real, not just typechecked: `npm run prisma:generate -w @campushub/api` and the
+  new `npm run prisma:push -w @campushub/api` (replaces `prisma:migrate`, since Mongo has no
+  SQL migrations) both ran clean against the live Atlas cluster — all 12 collections and their
+  indexes exist there now.
+- `apps/api/package.json`'s `prisma:migrate` script renamed to `prisma:push` (`prisma db push`)
+  to match how schema changes work on Mongo going forward.
+
 **Next screen:** the registration form (Story 1 — Fanshawe email + password), same
-one-screen-at-a-time approach. Wiring it to a real API call still needs the local dev database
-decision below to be made first (registration can't actually create a `User` row without one).
+one-screen-at-a-time approach — now unblocked, since a real database exists to persist the
+`User` row into.
 
-**Still blocking real (non-UI) functionality — needs a decision, not more code:**
+**Still open, unchanged from the sprint 0 pass:** no real email sent (placeholder
+`EMAIL_API_KEY`), no Vercel/Render deploy, no Word vision doc edits, no full-text/Atlas Search
+index.
 
-- **Local dev database.** No Docker or local Postgres on this machine, and `DATABASE_URL` is
-  still a placeholder, so nothing can actually be persisted yet. Two options were raised and
-  not yet decided: (a) a free Neon/Supabase Postgres project — matches the stack in §8.1/ADR
-  0001 exactly, needs someone to create the account and hand over a connection string; or
-  (b) a temporary local SQLite database for dev/demo only, which would need `Profile.interests`
-  reworked from a Postgres array to a join table (SQLite/Prisma doesn't support array columns),
-  to be re-adapted before the real Postgres deploy. Pick one before building registration's
-  backend half.
-- No real email sent, no Vercel/Render deploy, no Word vision doc edits, no full-text index —
-  all still open from the sprint 0 pass above, unchanged.
-
-**Next session should pick up at:** deciding the local dev database (above), then building the
-registration screen's backend (Story 1: `POST /auth/register`, Fanshawe-domain check via
-`isAllowedDomain`, password hashing, `User` row) and wiring the front end to it, followed by
-Story 2 (OTP email verification) using the already-scaffolded `otp.ts`/`email.ts` helpers.
+**Next session should pick up at:** building the registration screen's backend (Story 1:
+`POST /auth/register`, Fanshawe-domain check via `isAllowedDomain`, password hashing, `User`
+row) and wiring the front end to it, followed by Story 2 (OTP email verification) using the
+already-scaffolded `otp.ts`/`email.ts` helpers.

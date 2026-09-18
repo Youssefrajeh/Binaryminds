@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -56,7 +56,7 @@ enum ReportStatus {
 }
 
 model User {
-  id              String     @id @default(cuid())
+  id              String     @id @default(cuid()) @map("_id")
   email           String     @unique
   emailVerifiedAt DateTime?
   passwordHash    String
@@ -76,7 +76,7 @@ model User {
 }
 
 model Profile {
-  userId      String   @id
+  userId      String   @id @map("_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName String
   program     String?
@@ -87,14 +87,14 @@ model Profile {
 }
 
 model Category {
-  id       String    @id @default(cuid())
+  id       String    @id @default(cuid()) @map("_id")
   name     String
   slug     String    @unique
   listings Listing[]
 }
 
 model Listing {
-  id          String        @id @default(cuid())
+  id          String        @id @default(cuid()) @map("_id")
   sellerId    String
   seller      User          @relation(fields: [sellerId], references: [id])
   categoryId  String
@@ -115,7 +115,7 @@ model Listing {
 }
 
 model ListingImage {
-  id        String  @id @default(cuid())
+  id        String  @id @default(cuid()) @map("_id")
   listingId String
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
   url       String
@@ -123,7 +123,7 @@ model ListingImage {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   listingId String?
   listing   Listing? @relation(fields: [listingId], references: [id])
   createdAt DateTime @default(now())
@@ -133,16 +133,17 @@ model Conversation {
 }
 
 model Participant {
+  id             String       @id @default(cuid()) @map("_id")
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id])
 
-  @@id([conversationId, userId])
+  @@unique([conversationId, userId])
 }
 
 model Message {
-  id             String       @id @default(cuid())
+  id             String       @id @default(cuid()) @map("_id")
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
@@ -153,7 +154,7 @@ model Message {
 }
 
 model LostFoundPost {
-  id          String          @id @default(cuid())
+  id          String          @id @default(cuid()) @map("_id")
   authorId    String
   author      User            @relation(fields: [authorId], references: [id])
   kind        LostFoundKind
@@ -167,7 +168,7 @@ model LostFoundPost {
 }
 
 model Event {
-  id          String      @id @default(cuid())
+  id          String      @id @default(cuid()) @map("_id")
   organizerId String
   organizer   User        @relation(fields: [organizerId], references: [id])
   title       String
@@ -182,17 +183,18 @@ model Event {
 }
 
 model Rsvp {
+  id          String   @id @default(cuid()) @map("_id")
   eventId     String
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   respondedAt DateTime @default(now())
 
-  @@id([eventId, userId])
+  @@unique([eventId, userId])
 }
 
 model Report {
-  id         String           @id @default(cuid())
+  id         String           @id @default(cuid()) @map("_id")
   reporterId String
   reporter   User             @relation("ReportReporter", fields: [reporterId], references: [id])
   targetType ReportTargetType
@@ -205,7 +207,7 @@ model Report {
 }
 
 model ModerationAction {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   adminId   String
   admin     User     @relation("ModerationAdmin", fields: [adminId], references: [id])
   reportId  String
