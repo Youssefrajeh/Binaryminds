@@ -1,6 +1,3 @@
-// Shared API contract types between apps/web and apps/api.
-// Keep this package free of runtime dependencies — types only.
-
 export type Role = "guest" | "student" | "organizer" | "administrator";
 
 export type UserStatus = "pending" | "active" | "suspended";

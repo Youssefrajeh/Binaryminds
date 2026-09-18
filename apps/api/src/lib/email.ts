@@ -1,6 +1,3 @@
-// Sprint 0 spike: prove a verification email lands in a real Fanshawe inbox.
-// Swap EMAIL_PROVIDER/EMAIL_API_KEY in .env once a Resend or SendGrid account exists.
-
 interface SendEmailInput {
   to: string;
   subject: string;
