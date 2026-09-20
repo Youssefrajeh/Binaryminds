@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { Logo } from "./Logo";
 
 interface AuthLayoutProps {
   title: string;
@@ -9,25 +10,22 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-paper">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex max-w-5xl items-center px-6 py-4">
-          <Link to="/" className="font-mono text-sm font-bold tracking-[0.12em] text-ink">
-            CAMPUSHUB
-          </Link>
-        </div>
+    <div className="flex min-h-screen flex-col bg-canvas">
+      <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
+        <Logo />
+        <Link to="/" className="text-sm font-medium text-ink-soft hover:text-ink">
+          Back to home
+        </Link>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-          <div className="border border-rule bg-paper px-8 py-10 shadow-sm">
-            <h1 className="font-display text-3xl font-medium text-ink">{title}</h1>
-            {subtitle && (
-              <p className="mt-2 font-body text-sm leading-relaxed text-ink-soft">{subtitle}</p>
-            )}
-            <div className="mt-8">{children}</div>
+      <main className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">
+        <div className="w-full max-w-105">
+          <div className="rounded-2xl border border-line bg-surface p-8 shadow-sm">
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+            {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-soft">{subtitle}</p>}
+            <div className="mt-7">{children}</div>
           </div>
-          {footer && <div className="mt-6 text-center font-body text-sm text-ink-soft">{footer}</div>}
+          {footer && <div className="mt-6 text-center text-sm text-ink-soft">{footer}</div>}
         </div>
       </main>
     </div>

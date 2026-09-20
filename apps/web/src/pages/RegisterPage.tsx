@@ -48,7 +48,7 @@ export function RegisterPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link to="/login" className="text-pen underline-offset-4 hover:underline">
+          <Link to="/login" className="link">
             Log in
           </Link>
         </>
@@ -56,13 +56,13 @@ export function RegisterPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="border border-stamp/30 bg-stamp/5 px-4 py-3 font-body text-sm text-stamp">
+          <div className="alert-error">
             {error}
           </div>
         )}
 
         <div>
-          <label htmlFor="register-email" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="register-email" className="field-label">
             Fanshawe email
           </label>
           <input
@@ -72,12 +72,12 @@ export function RegisterPage() {
             placeholder="you@fanshaweonline.ca"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <div>
-          <label htmlFor="register-password" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="register-password" className="field-label">
             Password
           </label>
           <input
@@ -87,12 +87,12 @@ export function RegisterPage() {
             placeholder="At least 8 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <div>
-          <label htmlFor="register-confirm" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="register-confirm" className="field-label">
             Confirm password
           </label>
           <input
@@ -102,14 +102,14 @@ export function RegisterPage() {
             placeholder="Re-enter your password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-pen py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark disabled:opacity-50"
+          className="btn-primary w-full py-3"
         >
           {loading ? "Creating account…" : "Sign up"}
         </button>

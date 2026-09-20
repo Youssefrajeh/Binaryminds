@@ -70,9 +70,9 @@ export function VerifyPage() {
   if (!email) {
     return (
       <AuthLayout title="Verification">
-        <p className="font-body text-sm text-ink-soft">
+        <p className="text-sm text-ink-soft">
           No email provided.{" "}
-          <Link to="/register" className="text-pen underline-offset-4 hover:underline">
+          <Link to="/register" className="link">
             Register first
           </Link>
         </p>
@@ -87,12 +87,12 @@ export function VerifyPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="border border-stamp/30 bg-stamp/5 px-4 py-3 font-body text-sm text-stamp">
+          <div className="alert-error">
             {error}
           </div>
         )}
 
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-2.5">
           {digits.map((digit, i) => (
             <input
               key={i}
@@ -103,7 +103,7 @@ export function VerifyPage() {
               value={digit}
               onChange={(e) => handleChange(i, e.target.value)}
               onKeyDown={(e) => handleKeyDown(i, e)}
-              className="h-14 w-11 border border-rule bg-paper text-center font-mono text-xl text-ink outline-none transition-colors focus:border-pen"
+              className="field-input h-13 w-11 px-0 text-center text-xl font-semibold tabular-nums"
               aria-label={`Digit ${i + 1}`}
             />
           ))}
@@ -112,14 +112,14 @@ export function VerifyPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-pen py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark disabled:opacity-50"
+          className="btn-primary w-full py-3"
         >
           {loading ? "Verifying…" : "Verify"}
         </button>
 
-        <p className="text-center font-body text-xs text-muted">
+        <p className="text-center text-xs text-muted">
           Didn't receive the code? Check your spam folder, or{" "}
-          <Link to="/register" className="text-pen underline-offset-4 hover:underline">
+          <Link to="/register" className="link">
             try again
           </Link>
         </p>

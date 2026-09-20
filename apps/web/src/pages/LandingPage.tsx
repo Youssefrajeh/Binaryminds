@@ -5,7 +5,7 @@ import { Footer } from "../components/Footer";
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-paper font-body text-ink">
+    <div className="min-h-screen bg-canvas text-ink">
       <Nav />
       <Hero />
       <Sections />

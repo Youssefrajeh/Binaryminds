@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent, type KeyboardEvent } from "react";
-import { Link } from "react-router";
+import { Nav } from "../components/Nav";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
 
@@ -88,65 +88,44 @@ export function ProfilePage() {
     }
   }
 
-  if (fetching) {
-    return (
-      <div className="flex min-h-screen flex-col bg-paper">
-        <header className="border-b border-rule">
-          <div className="mx-auto flex max-w-5xl items-center px-6 py-4">
-            <Link to="/" className="font-mono text-sm font-bold tracking-[0.12em] text-ink">
-              CAMPUSHUB
-            </Link>
-          </div>
-        </header>
-        <main className="flex flex-1 items-center justify-center">
-          <p className="font-body text-sm text-muted">Loading profile…</p>
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen flex-col bg-paper">
-      <header className="border-b border-rule">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <Link to="/" className="font-mono text-sm font-bold tracking-[0.12em] text-ink">
-            CAMPUSHUB
-          </Link>
-          <Link
-            to="/"
-            className="font-body text-sm text-ink-soft underline-offset-4 transition-colors hover:text-pen hover:underline"
-          >
-            ← Back to home
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-2xl px-4 py-12">
-        <h1 className="font-display text-3xl font-medium text-ink">Your Profile</h1>
-        <p className="mt-2 font-body text-sm text-ink-soft">
+    <div className="min-h-screen bg-canvas">
+      <Nav />
+      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">Your profile</h1>
+        <p className="mt-1.5 text-sm text-ink-soft">
           This is how other Fanshawe students see you on CampusHub.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
+          {fetching ? (
+            <p className="py-8 text-center text-sm text-muted">Loading profile…</p>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="border border-stamp/30 bg-stamp/5 px-4 py-3 font-body text-sm text-stamp">
+            <div className="alert-error">
               {error}
             </div>
           )}
           {success && (
-            <div className="border border-pen/30 bg-pen/5 px-4 py-3 font-body text-sm text-pen">
+            <div className="alert-success">
               {success}
             </div>
           )}
 
-          <div className="border border-rule bg-paper p-6 shadow-sm">
-            <p className="mb-1 font-body text-xs font-medium uppercase tracking-wider text-muted">Email</p>
-            <p className="font-body text-sm text-ink">{user?.email}</p>
+          <div className="rounded-lg bg-canvas px-4 py-3">
+            <p className="text-xs font-medium text-muted">Email</p>
+            <p className="mt-0.5 flex items-center gap-2 text-sm text-ink">
+              {user?.email}
+              <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+                Verified
+              </span>
+            </p>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label htmlFor="profile-name" className="mb-1.5 block font-body text-sm font-medium text-ink">
+              <label htmlFor="profile-name" className="field-label">
                 Display name *
               </label>
               <input
@@ -156,12 +135,12 @@ export function ProfilePage() {
                 maxLength={50}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+                className="field-input"
               />
             </div>
 
             <div>
-              <label htmlFor="profile-program" className="mb-1.5 block font-body text-sm font-medium text-ink">
+              <label htmlFor="profile-program" className="field-label">
                 Program
               </label>
               <input
@@ -171,20 +150,20 @@ export function ProfilePage() {
                 placeholder="e.g. Computer Programming"
                 value={program}
                 onChange={(e) => setProgram(e.target.value)}
-                className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+                className="field-input"
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="profile-year" className="mb-1.5 block font-body text-sm font-medium text-ink">
+            <label htmlFor="profile-year" className="field-label">
               Year of study
             </label>
             <select
               id="profile-year"
               value={yearOfStudy}
               onChange={(e) => setYearOfStudy(e.target.value)}
-              className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors focus:border-pen"
+              className="field-input"
             >
               <option value="">Select year</option>
               <option value="1">1st year</option>
@@ -195,7 +174,7 @@ export function ProfilePage() {
           </div>
 
           <div>
-            <label htmlFor="profile-bio" className="mb-1.5 block font-body text-sm font-medium text-ink">
+            <label htmlFor="profile-bio" className="field-label">
               Bio
             </label>
             <textarea
@@ -205,26 +184,26 @@ export function ProfilePage() {
               placeholder="Tell other students about yourself…"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
-              className="w-full resize-none border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+              className="field-input resize-none"
             />
-            <p className="mt-1 text-right font-body text-xs text-muted">{bio.length}/500</p>
+            <p className="mt-1 text-right text-xs text-muted">{bio.length}/500</p>
           </div>
 
           <div>
-            <label htmlFor="profile-interests" className="mb-1.5 block font-body text-sm font-medium text-ink">
+            <label htmlFor="profile-interests" className="field-label">
               Interests
             </label>
-            <div className="flex min-h-[44px] flex-wrap gap-2 border border-rule bg-paper px-3 py-2 transition-colors focus-within:border-pen">
+            <div className="flex min-h-11 flex-wrap gap-2 rounded-lg border border-line bg-surface px-3 py-2 shadow-xs transition focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/10">
               {interests.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 bg-pen/10 px-2.5 py-1 font-mono text-xs text-pen"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => removeInterest(tag)}
-                    className="ml-0.5 text-pen/60 transition-colors hover:text-pen"
+                    className="ml-0.5 text-brand/60 transition-colors hover:text-brand"
                     aria-label={`Remove ${tag}`}
                   >
                     ×
@@ -238,10 +217,10 @@ export function ProfilePage() {
                 value={interestInput}
                 onChange={(e) => setInterestInput(e.target.value)}
                 onKeyDown={handleInterestKeyDown}
-                className="min-w-[120px] flex-1 border-none bg-transparent py-1 font-body text-sm text-ink outline-none placeholder:text-muted"
+                className="min-w-30 flex-1 border-none bg-transparent py-1 text-sm text-ink outline-none placeholder:text-muted"
               />
             </div>
-            <p className="mt-1 font-body text-xs text-muted">
+            <p className="mt-1 text-xs text-muted">
               Press Enter or comma to add. {interests.length}/10
             </p>
           </div>
@@ -249,11 +228,13 @@ export function ProfilePage() {
           <button
             type="submit"
             disabled={loading}
-            className="bg-pen px-8 py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark disabled:opacity-50"
+            className="btn-primary px-6"
           >
             {loading ? "Saving…" : "Save profile"}
           </button>
         </form>
+          )}
+        </div>
       </main>
     </div>
   );

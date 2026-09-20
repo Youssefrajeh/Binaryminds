@@ -50,7 +50,7 @@ export function ResetPasswordPage() {
       footer={
         <>
           Remember your password?{" "}
-          <Link to="/login" className="text-pen underline-offset-4 hover:underline">
+          <Link to="/login" className="link">
             Log in
           </Link>
         </>
@@ -58,18 +58,18 @@ export function ResetPasswordPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="border border-stamp/30 bg-stamp/5 px-4 py-3 font-body text-sm text-stamp">
+          <div className="alert-error">
             {error}
           </div>
         )}
         {success && (
-          <div className="border border-pen/30 bg-pen/5 px-4 py-3 font-body text-sm text-pen">
+          <div className="alert-success">
             {success}
           </div>
         )}
 
         <div>
-          <label htmlFor="reset-email" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="reset-email" className="field-label">
             Email
           </label>
           <input
@@ -78,12 +78,12 @@ export function ResetPasswordPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <div>
-          <label htmlFor="reset-otp" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="reset-otp" className="field-label">
             Reset code
           </label>
           <input
@@ -95,12 +95,12 @@ export function ResetPasswordPage() {
             placeholder="6-digit code"
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-mono text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <div>
-          <label htmlFor="reset-password" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="reset-password" className="field-label">
             New password
           </label>
           <input
@@ -110,12 +110,12 @@ export function ResetPasswordPage() {
             placeholder="At least 8 characters"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <div>
-          <label htmlFor="reset-confirm" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="reset-confirm" className="field-label">
             Confirm new password
           </label>
           <input
@@ -125,14 +125,14 @@ export function ResetPasswordPage() {
             placeholder="Re-enter your new password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-pen py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark disabled:opacity-50"
+          className="btn-primary w-full py-3"
         >
           {loading ? "Resetting…" : "Reset password"}
         </button>

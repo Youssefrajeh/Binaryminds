@@ -1,44 +1,35 @@
 import { Link } from "react-router";
+import { Logo } from "./Logo";
 import { useAuth } from "../context/AuthContext";
+
+const navLink =
+  "rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-canvas hover:text-ink";
 
 export function Nav() {
   const { isAuthenticated, user, logout } = useAuth();
+  const name = user?.profile?.displayName || user?.email?.split("@")[0] || "Profile";
 
   return (
-    <header className="border-b border-rule">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-        <Link to="/" className="font-mono text-sm font-bold tracking-[0.12em] text-ink">
-          CAMPUSHUB
-        </Link>
+    <header className="sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <Logo />
 
-        <nav className="flex items-center gap-5">
+        <nav className="flex items-center gap-2 sm:gap-3">
           {isAuthenticated ? (
             <>
-              <Link
-                to="/profile"
-                className="font-body text-sm text-ink-soft underline-offset-4 transition-colors hover:text-pen hover:underline"
-              >
-                {user?.profile?.displayName || user?.email?.split("@")[0] || "Profile"}
+              <Link to="/profile" className={navLink}>
+                {name}
               </Link>
-              <button
-                onClick={logout}
-                className="font-body text-sm text-ink-soft underline-offset-4 transition-colors hover:text-pen hover:underline"
-              >
+              <button onClick={logout} className="btn-secondary">
                 Log out
               </button>
             </>
           ) : (
             <>
-              <Link
-                to="/login"
-                className="font-body text-sm text-ink-soft underline-offset-4 transition-colors hover:text-pen hover:underline"
-              >
+              <Link to="/login" className={navLink}>
                 Log in
               </Link>
-              <Link
-                to="/register"
-                className="bg-pen px-4 py-2 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark"
-              >
+              <Link to="/register" className="btn-primary">
                 Sign up
               </Link>
             </>

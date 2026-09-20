@@ -31,7 +31,7 @@ export function ForgotPasswordPage() {
       footer={
         <>
           Remember your password?{" "}
-          <Link to="/login" className="text-pen underline-offset-4 hover:underline">
+          <Link to="/login" className="link">
             Log in
           </Link>
         </>
@@ -39,13 +39,13 @@ export function ForgotPasswordPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="border border-stamp/30 bg-stamp/5 px-4 py-3 font-body text-sm text-stamp">
+          <div className="alert-error">
             {error}
           </div>
         )}
 
         <div>
-          <label htmlFor="forgot-email" className="mb-1.5 block font-body text-sm font-medium text-ink">
+          <label htmlFor="forgot-email" className="field-label">
             Email
           </label>
           <input
@@ -55,14 +55,14 @@ export function ForgotPasswordPage() {
             placeholder="you@fanshaweonline.ca"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-rule bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-pen"
+            className="field-input"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-pen py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark disabled:opacity-50"
+          className="btn-primary w-full py-3"
         >
           {loading ? "Sending code…" : "Send reset code"}
         </button>
