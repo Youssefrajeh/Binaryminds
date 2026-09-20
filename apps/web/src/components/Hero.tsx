@@ -1,6 +1,10 @@
+import { Link } from "react-router";
 import { VerifiedStamp } from "./VerifiedStamp";
+import { useAuth } from "../context/AuthContext";
 
 export function Hero() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <section className="mx-auto max-w-5xl px-6 pt-20 pb-16 md:pt-28 md:pb-24">
       <div className="grid gap-12 md:grid-cols-[1fr_auto] md:items-end">
@@ -15,12 +19,21 @@ export function Hero() {
             actually go here.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-6">
-            <a
-              href="#join"
-              className="bg-pen px-6 py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark"
-            >
-              Join with your Fanshawe email
-            </a>
+            {isAuthenticated ? (
+              <Link
+                to="/profile"
+                className="bg-pen px-6 py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark"
+              >
+                Go to your profile
+              </Link>
+            ) : (
+              <Link
+                to="/register"
+                className="bg-pen px-6 py-3 font-body text-sm font-semibold tracking-wide text-paper transition-colors hover:bg-pen-dark"
+              >
+                Join with your Fanshawe email
+              </Link>
+            )}
             <span className="font-mono text-xs tracking-[0.15em] text-muted">
               VERIFICATION TAKES ONE EMAIL, ONCE
             </span>

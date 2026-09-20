@@ -63,6 +63,8 @@ model User {
   role            Role       @default(STUDENT)
   status          UserStatus @default(PENDING)
   createdAt       DateTime   @default(now())
+  otpHash         String?
+  otpExpiresAt    DateTime?
 
   profile            Profile?
   listings           Listing[]
