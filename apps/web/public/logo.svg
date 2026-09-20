@@ -1,29 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
   <defs>
     <linearGradient id="chGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#b3122e" />
-      <stop offset="50%" stop-color="#c41634" />
-      <stop offset="100%" stop-color="#8f0e24" />
+      <stop offset="0%" stop-color="#c8102e" />
+      <stop offset="50%" stop-color="#b3122e" />
+      <stop offset="100%" stop-color="#800b1e" />
     </linearGradient>
     <linearGradient id="chGloss" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
     </linearGradient>
   </defs>
-  <!-- Rounded Squircle Background -->
+  <!-- Rounded Squircle Background in Official Fanshawe Crimson -->
   <rect width="48" height="48" rx="12" fill="url(#chGrad)" />
   <rect width="48" height="48" rx="12" fill="url(#chGloss)" />
 
-  <!-- Mortarboard Roof -->
-  <path d="M24 10L9 18L24 26L39 18L24 10Z" fill="#ffffff" />
+  <!-- Fanshawe NorthStar 4 Outward-Facing F Points -->
+  <path d="M24 4L27.5 14H20.5L24 4Z" fill="#ffffff" opacity="0.95" />
+  <path d="M27.5 10H33V13H27.5V10Z" fill="#ffffff" opacity="0.85" />
   
-  <!-- Tassel -->
-  <path d="M34 21V28M34 28C33 28 32.5 28.5 32.5 29.5C32.5 30.5 33 31 34 31C35 31 35.5 30.5 35.5 29.5C35.5 28.5 35 28 34 28Z" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" fill="none" />
+  <path d="M24 44L20.5 34H27.5L24 44Z" fill="#ffffff" opacity="0.95" />
+  <path d="M20.5 38H15V35H20.5V38Z" fill="#ffffff" opacity="0.85" />
 
-  <!-- Collegiate Arch & Interconnected Hub Pathway -->
-  <path d="M14 23.5V31C14 34.5 18 37.5 24 37.5C30 37.5 34 34.5 34 31V26.5" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" fill="none" />
+  <path d="M44 24L34 27.5V20.5L44 24Z" fill="#ffffff" opacity="0.95" />
+  <path d="M38 27.5V33H35V27.5H38Z" fill="#ffffff" opacity="0.85" />
 
-  <!-- Central Hub Node -->
-  <circle cx="24" cy="30" r="2.8" fill="#ffffff" />
-  <path d="M19 30H29" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+  <path d="M4 24L14 20.5V27.5L4 24Z" fill="#ffffff" opacity="0.95" />
+  <path d="M10 20.5V15H13V20.5H10Z" fill="#ffffff" opacity="0.85" />
+
+  <!-- Center Academic Graduation Mortarboard -->
+  <path d="M24 16L13 22.5L24 29L35 22.5L24 16Z" fill="#ffffff" stroke="rgba(255,255,255,0.6)" stroke-width="0.8" />
+  
+  <!-- Central Hub Connection Node -->
+  <circle cx="24" cy="24" r="3" fill="#b3122e" stroke="#ffffff" stroke-width="1.5" />
 </svg>
