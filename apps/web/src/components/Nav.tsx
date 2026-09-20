@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Logo } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../context/AuthContext";
 
 const navLink =
@@ -15,6 +16,7 @@ export function Nav() {
         <Logo />
 
         <nav className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           {isAuthenticated ? (
             <>
               <Link to="/profile" className={navLink}>

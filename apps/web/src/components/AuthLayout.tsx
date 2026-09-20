@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Logo } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface AuthLayoutProps {
   title: string;
@@ -13,9 +14,12 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
     <div className="flex min-h-screen flex-col bg-canvas">
       <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
         <Logo />
-        <Link to="/" className="text-sm font-medium text-ink-soft hover:text-ink">
-          Back to home
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link to="/" className="text-sm font-medium text-ink-soft hover:text-ink">
+            Back to home
+          </Link>
+        </div>
       </header>
 
       <main className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">

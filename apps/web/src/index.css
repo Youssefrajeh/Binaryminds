@@ -14,10 +14,11 @@
   --danger-soft: #fef3f2;
   --success: #067647;
   --success-soft: #ecfdf3;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --canvas: #0d0e11;
     --surface: #16181d;
     --ink: #f3f4f6;
@@ -31,7 +32,25 @@
     --danger-soft: #2a1513;
     --success: #47cd89;
     --success-soft: #0f2419;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+    --canvas: #0d0e11;
+    --surface: #16181d;
+    --ink: #f3f4f6;
+    --ink-soft: #b7bcc7;
+    --muted: #868c99;
+    --line: #262a32;
+    --brand: #e5566d;
+    --brand-dark: #ef7286;
+    --brand-soft: #2a151a;
+    --danger: #f97066;
+    --danger-soft: #2a1513;
+    --success: #47cd89;
+    --success-soft: #0f2419;
+    color-scheme: dark;
 }
 
 @theme {
