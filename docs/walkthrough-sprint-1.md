@@ -1,57 +1,51 @@
-# Sprint 1 — Auth Flow Test Results
+# Sprint 1: Auth Flow Walkthrough
 
-All tests passed ✅. Here's what was built and verified:
+Final state of the Sprint 1 UI (accounts and verification), shown in light and dark mode.
+Use the sun/moon button in the header to switch themes.
 
-## Browser Recording
+## Landing Page
+Guests see **Log in** and **Sign up** in the nav. The hero CTA is "Create your account".
 
-![Auth flow walkthrough](images/auth_flow_test_1789930632009.webp)
+| Light | Dark |
+|---|---|
+| ![Landing, light](images/landing-light.png) | ![Landing, dark](images/landing-dark.png) |
 
-## Page Screenshots
+## Registration
+Fanshawe email, password, and confirm password. Non-Fanshawe emails are rejected on both the client and the server.
 
-### Landing Page
-Nav shows **Log in** + **Sign up** for guests. Hero CTA: "Join with your Fanshawe email".
+![Registration page](images/register-light.png)
 
-![Landing page](images/landing_page_1789930663478.png)
+## Login
+Email and password with a "Forgot password?" link.
 
-### Registration Page
-Clean form with Fanshawe email, password, and confirm password fields.
+| Light | Dark |
+|---|---|
+| ![Login, light](images/login-light.png) | ![Login, dark](images/login-dark.png) |
 
-![Registration page](images/registration_page_1789930675437.png)
+## Forgot Password
+Enter an email to receive a reset code. The response is the same whether or not the account exists.
 
-### Email Validation
-Non-Fanshawe emails (`@gmail.com`) are rejected client-side with a clear error.
+![Forgot password](images/forgot-password-light.png)
 
-![Registration error](images/registration_error_1789930698504.png)
+## Protected Route
+Opening `/profile` while logged out redirects to `/login`.
 
-### Login Page
-Email + password with "Forgot password?" link.
-
-![Login page](images/login_page_1789930721735.png)
-
-### Forgot Password Page
-Enter email to receive a reset code.
-
-![Forgot password](images/forgot_password_page_1789930731855.png)
-
-### Protected Route Redirect
-Navigating to `/profile` while unauthenticated redirects to `/login` ✅
-
-![Profile redirect](images/profile_redirect_to_login_1789930746223.png)
+![Profile redirect](images/profile-redirect.png)
 
 ## Test Summary
 
 | Test | Result |
 |---|---|
-| Landing page renders | ✅ |
-| Nav shows guest links (Log in / Sign up) | ✅ |
+| Landing page renders (light and dark) | ✅ |
+| Nav shows guest links | ✅ |
+| Theme toggle switches and persists | ✅ |
 | Hero CTA links to /register | ✅ |
 | Registration page renders | ✅ |
 | Non-Fanshawe email rejected | ✅ |
 | Login page renders | ✅ |
+| Wrong credentials return a generic error | ✅ |
 | Forgot password page renders | ✅ |
 | `/profile` redirects to `/login` when unauthenticated | ✅ |
-| API typechecks clean | ✅ |
-| Web typechecks clean | ✅ |
-| API builds clean | ✅ |
-| Web builds clean | ✅ |
+| API typechecks and builds | ✅ |
+| Web typechecks and builds | ✅ |
 | Prisma schema pushed to MongoDB Atlas | ✅ |

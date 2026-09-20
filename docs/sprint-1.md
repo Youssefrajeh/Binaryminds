@@ -2,7 +2,7 @@
 
 **Sprint dates:** Sep 28 – Oct 9  
 **Points committed:** 16  
-**Status:** Complete ✅
+**Status:** Complete ✅ (final version, includes the frontend redesign and dark mode)
 
 ---
 
@@ -40,7 +40,8 @@
 - OTP codes are also bcrypt-hashed before storage (15-minute expiry)
 - Only `@fanshaweonline.ca` emails accepted (enforced on both client and server)
 - Forgot-password endpoint returns a constant response to prevent email enumeration
-- Email sending falls back to console logging when no `EMAIL_API_KEY` is configured
+- Email is sent through Resend when `EMAIL_API_KEY` is set; otherwise the code is printed to the API console (dev mode)
+- Resend can only send from a verified domain. Until one is set up, `onboarding@resend.dev` delivers only to the Resend account owner's address
 
 ### Frontend (`apps/web`)
 
@@ -56,11 +57,17 @@
 - `src/lib/api.ts` — Axios instance with JWT interceptor
 - `src/components/AuthLayout.tsx` — Shared centered-card layout for auth pages
 - `src/components/ProtectedRoute.tsx` — Route guard redirecting to /login
+- `src/components/Logo.tsx` — CampusHub logo used in the nav, auth pages, and footer
+- `src/components/ThemeToggle.tsx` — Light/dark toggle (sun/moon button)
 
 **Modified files:**
 - `src/App.tsx` — Added BrowserRouter with all routes
-- `src/components/Nav.tsx` — Auth-aware: shows Log in/Sign up for guests, profile/logout for users
-- `src/components/Hero.tsx` — CTA navigates to /register (guests) or /profile (logged in)
+- `src/components/Nav.tsx` — Auth-aware: shows Log in/Sign up for guests, profile/logout for users, plus the theme toggle
+- `src/components/Hero.tsx` — Rebuilt hero with a marketplace preview; CTA navigates to /register (guests) or /profile (logged in)
+- `src/components/Sections.tsx` — Feature cards for Marketplace, Lost & Found, and Events
+- `src/components/Footer.tsx` — Footer with the independent-project disclaimer
+- `src/index.css` — Design tokens and shared component classes (`field-input`, `btn-primary`, `btn-secondary`, `alert-error`, `alert-success`, `link`)
+- `index.html` / `public/favicon.svg` — Inter font, pre-paint theme script, CampusHub favicon
 
 **New dependencies:** `react-router`, `axios`
 
@@ -75,32 +82,50 @@
 
 ## Design
 
-All auth pages follow the existing paper/ink design system:
-- Centered card layout with `paper` background and `rule` borders
-- `font-display` for headings, `font-body` for form labels
-- `bg-pen` / `hover:bg-pen-dark` primary buttons
-- `stamp` color for error messages
-- Dark mode supported via `prefers-color-scheme`
+The UI was redesigned after the first pass to look like a conventional product rather than a themed mock-up:
+- Neutral surfaces with a single crimson accent; Inter is the only typeface
+- Rounded cards, soft shadows, and shared form/button/alert classes so every page matches
+- **Dark mode with a toggle:** the palette is driven by a `data-theme` attribute. It follows the OS setting until the user picks a theme, then remembers the choice in `localStorage`. An inline script applies it before first paint to avoid a flash
 - Responsive from 360px to 1920px
+
+### Screenshots
+
+| Light | Dark |
+|---|---|
+| ![Landing, light](images/landing-light.png) | ![Landing, dark](images/landing-dark.png) |
+| ![Login, light](images/login-light.png) | ![Login, dark](images/login-dark.png) |
+
+See [walkthrough-sprint-1.md](walkthrough-sprint-1.md) for the full page-by-page walkthrough.
 
 ---
 
 ## Verification
 
+Re-run against the final code:
+
 | Check | Result |
 |---|---|
-| `npm run typecheck` (API) | ✅ Pass |
-| `npm run typecheck` (Web) | ✅ Pass |
-| `npm run build` (API) | ✅ Pass |
-| `npm run build` (Web) | ✅ Pass |
+| `tsc --noEmit` (API) | ✅ Pass |
+| `tsc` build (API) | ✅ Pass |
+| `tsc -b --noEmit` (Web) | ✅ Pass |
+| `vite build` (Web) | ✅ Pass |
 | Prisma schema pushed to MongoDB Atlas | ✅ Synced |
-| Landing page renders | ✅ |
+| Landing page renders (light and dark) | ✅ |
 | Nav shows guest/auth state | ✅ |
+| Theme toggle switches and persists the theme | ✅ |
 | Registration page renders | ✅ |
-| Non-Fanshawe email rejected | ✅ |
-| Login page renders | ✅ |
+| Non-Fanshawe email rejected (API returns error) | ✅ |
+| Login page renders (light and dark) | ✅ |
+| Wrong credentials return a generic error | ✅ |
 | Forgot password page renders | ✅ |
 | `/profile` redirects unauthenticated → `/login` | ✅ |
+| `GET /profile/me` without a token returns 401 | ✅ |
+| Registration succeeds and issues a verification code | ✅ (code printed to API console in dev mode) |
+
+### Known limitations
+- Real verification emails are not delivered yet. That needs a Resend sending domain to be verified; until then codes appear in the API console.
+- The post-registration verify, reset-password, and profile-save screens were exercised by hand during development, but they are not covered by automated tests.
+- No automated test suite exists yet; verification is by typecheck, build, and manual checks.
 
 ---
 
