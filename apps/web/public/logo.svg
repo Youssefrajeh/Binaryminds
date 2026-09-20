@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="chGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b3122e" />
+      <stop offset="50%" stop-color="#c41634" />
+      <stop offset="100%" stop-color="#8f0e24" />
+    </linearGradient>
+    <linearGradient id="chGloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded Squircle Background -->
+  <rect width="48" height="48" rx="12" fill="url(#chGrad)" />
+  <rect width="48" height="48" rx="12" fill="url(#chGloss)" />
+
+  <!-- Mortarboard Roof -->
+  <path d="M24 10L9 18L24 26L39 18L24 10Z" fill="#ffffff" />
+  
+  <!-- Tassel -->
+  <path d="M34 21V28M34 28C33 28 32.5 28.5 32.5 29.5C32.5 30.5 33 31 34 31C35 31 35.5 30.5 35.5 29.5C35.5 28.5 35 28 34 28Z" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" fill="none" />
+
+  <!-- Collegiate Arch & Interconnected Hub Pathway -->
+  <path d="M14 23.5V31C14 34.5 18 37.5 24 37.5C30 37.5 34 34.5 34 31V26.5" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round" fill="none" />
+
+  <!-- Central Hub Node -->
+  <circle cx="24" cy="30" r="2.8" fill="#ffffff" />
+  <path d="M19 30H29" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" />
+</svg>
