@@ -240,7 +240,7 @@ things wearing a Fanshawe lanyard.
 | Auth | Own JWT + email OTP | Verification logic must be yours; it's the differentiator |
 | Email | Resend or SendGrid | Free tier covers a class project |
 | Images | Cloudinary free tier | Resize and CDN for free |
-| Hosting | Vercel (web) + Render (API) | Both already in your toolchain |
+| Hosting | Render (one web service serves the API and the built web app) | Single free-tier service, one deploy |
 | CI | GitHub Actions: lint, typecheck, test on every PR | Cheap insurance against merge chaos |
 
 Realtime is deliberately absent. Add Socket.IO in sprint 4 **only if** sprints 1–3 closed on
@@ -295,7 +295,7 @@ campushub/
 
 | Sprint | Dates | Goal | Points |
 |---|---|---|---|
-| **0** | Sep 18 – Sep 27 | Vision doc finalised and submitted. Repo, CI, Prisma schema, deploy a "hello world" to Vercel + Render so the pipeline is proven before there is anything to break. Spike email delivery to a real Fanshawe address. | — |
+| **0** | Sep 18 – Sep 27 | Vision doc finalised and submitted. Repo, CI, Prisma schema, deploy a "hello world" to Render so the pipeline is proven before there is anything to break. Spike email delivery to a real Fanshawe address. | — |
 | **1** | Sep 28 – Oct 9 | Accounts and verification. Stories 1–5. End state: you can register with a Fanshawe email, verify, log in, and edit a profile. | 16 |
 | **2** | Oct 12 – Oct 23 | Marketplace. Stories 6–8, 10. End state: post a listing with images, browse, filter, search, mark sold. | 11 |
 | **3** | Oct 26 – Nov 6 | Messaging and Lost & Found. Stories 9, 11–14. | 13 |
@@ -448,3 +448,10 @@ index.
 `POST /auth/register`, Fanshawe-domain check via `isAllowedDomain`, password hashing, `User`
 row) and wiring the front end to it, followed by Story 2 (OTP email verification) using the
 already-scaffolded `otp.ts`/`email.ts` helpers.
+
+**2026-09-21 — Deployed to Render.** The app is live on Render as a single free-tier web service
+that serves both the API and the built React app (the API mounts its routes at `/` and `/api` and
+serves `apps/web/dist`). Vercel is not used. Registration now stores details in a short-lived
+`PendingRegistration` record and creates the `User` only after the emailed code is verified.
+Verification emails are sent through Mailjet (`MAILJET_API_KEY`, `MAILJET_SECRET_KEY`,
+`EMAIL_FROM_ADDRESS`).

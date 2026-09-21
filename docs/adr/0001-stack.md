@@ -22,7 +22,7 @@ records that constraint instead of a choice.
 | Auth | Own JWT + email OTP |
 | Email | Resend (fallback: SendGrid) |
 | Images | Cloudinary free tier |
-| Hosting | Vercel (web) + Render (API) |
+| Hosting | Render (single web service: API + built web app) |
 | CI | GitHub Actions — typecheck, lint, build, test on every PR |
 | Monorepo | npm workspaces (`apps/web`, `apps/api`, `packages/shared`) |
 
