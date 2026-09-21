@@ -77,6 +77,15 @@ model User {
   moderationActions  ModerationAction[] @relation("ModerationAdmin")
 }
 
+model PendingRegistration {
+  id           String   @id @default(cuid()) @map("_id")
+  email        String   @unique
+  passwordHash String
+  otpHash      String
+  otpExpiresAt DateTime
+  createdAt    DateTime @default(now())
+}
+
 model Profile {
   userId      String   @id @map("_id")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)

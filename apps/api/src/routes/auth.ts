@@ -107,26 +107,37 @@ authRouter.post("/register", async (req, res) => {
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    if (existing && existing.status !== "PENDING") {
       res.status(409).json({ error: "An account with this email already exists" });
       return;
     }
+    if (existing) {
+      await prisma.user.delete({ where: { id: existing.id } });
+    }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    const user = await prisma.user.create({
-      data: { email, passwordHash },
+    await prisma.pendingRegistration.upsert({
+      where: { email },
+      create: { email, passwordHash, otpHash, otpExpiresAt },
+      update: { passwordHash, otpHash, otpExpiresAt, createdAt: new Date() },
     });
 
-    const otp = await generateAndStoreOtp(user.id);
+    try {
+      await sendEmail({
+        to: email,
+        subject: "CampusHub — Verify your email",
+        html: `<p>Your verification code is: <strong>${otp}</strong></p><p>It expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
+      });
+    } catch (err) {
+      await prisma.pendingRegistration.delete({ where: { email } }).catch(() => {});
+      throw err;
+    }
 
-    await sendEmail({
-      to: email,
-      subject: "CampusHub — Verify your email",
-      html: `<p>Your verification code is: <strong>${otp}</strong></p><p>It expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
-    });
-
-    res.status(201).json({ message: "Account created. Check your email for the verification code." });
+    res.status(201).json({ message: "Check your email for the verification code." });
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -150,37 +161,42 @@ authRouter.post("/verify", async (req, res) => {
 
     const { email, otp } = parsed.data;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
-    });
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email } });
 
-    if (!user || !user.otpHash || !user.otpExpiresAt) {
+    if (!pending) {
       res.status(400).json({ error: "Invalid verification request" });
       return;
     }
 
-    if (new Date() > user.otpExpiresAt) {
-      res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+    if (new Date() > pending.otpExpiresAt) {
+      await prisma.pendingRegistration.delete({ where: { email } });
+      res.status(400).json({ error: "Verification code has expired. Please sign up again." });
       return;
     }
 
-    const valid = await bcrypt.compare(otp, user.otpHash);
+    const valid = await bcrypt.compare(otp, pending.otpHash);
     if (!valid) {
       res.status(400).json({ error: "Invalid verification code" });
       return;
     }
 
-    const updated = await prisma.user.update({
-      where: { id: user.id },
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      await prisma.pendingRegistration.delete({ where: { email } });
+      res.status(409).json({ error: "An account with this email already exists" });
+      return;
+    }
+
+    const updated = await prisma.user.create({
       data: {
+        email,
+        passwordHash: pending.passwordHash,
         emailVerifiedAt: new Date(),
         status: "ACTIVE",
-        otpHash: null,
-        otpExpiresAt: null,
       },
       include: { profile: true },
     });
+    await prisma.pendingRegistration.delete({ where: { email } });
 
     const token = signToken({ userId: updated.id, role: updated.role });
 
