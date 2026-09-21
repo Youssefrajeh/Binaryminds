@@ -25,7 +25,7 @@ docs/
 
 ```bash
 npm install
-cp apps/api/.env.example apps/api/.env   # fill in DATABASE_URL, JWT_SECRET, EMAIL_API_KEY
+cp apps/api/.env.example apps/api/.env   # fill in DATABASE_URL, JWT_SECRET
 npx prisma generate --schema=apps/api/prisma/schema.prisma
 
 npm run dev:api     # http://localhost:4000

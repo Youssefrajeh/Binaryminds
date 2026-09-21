@@ -40,8 +40,7 @@
 - OTP codes are also bcrypt-hashed before storage (15-minute expiry)
 - Only `@fanshaweonline.ca` emails accepted (enforced on both client and server)
 - Forgot-password endpoint returns a constant response to prevent email enumeration
-- Email is sent through Resend when `EMAIL_API_KEY` is set; otherwise the code is printed to the API console (dev mode)
-- Resend can only send from a verified domain. Until one is set up, `onboarding@resend.dev` delivers only to the Resend account owner's address
+- No email provider is wired up yet; verification and reset codes are printed to the API console (dev mode)
 
 ### Frontend (`apps/web`)
 
@@ -123,7 +122,7 @@ Re-run against the final code:
 | Registration succeeds and issues a verification code | ✅ (code printed to API console in dev mode) |
 
 ### Known limitations
-- Real verification emails are not delivered yet. That needs a Resend sending domain to be verified; until then codes appear in the API console.
+- Real verification emails are not delivered yet; codes appear in the API console until an email provider is chosen.
 - The post-registration verify, reset-password, and profile-save screens were exercised by hand during development, but they are not covered by automated tests.
 - No automated test suite exists yet; verification is by typecheck, build, and manual checks.
 

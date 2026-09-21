@@ -15,11 +15,5 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      - key: EMAIL_PROVIDER
-        value: resend
-      - key: EMAIL_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
       - key: ALLOWED_EMAIL_DOMAIN
         value: fanshaweonline.ca
