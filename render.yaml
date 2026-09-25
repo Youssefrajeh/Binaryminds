@@ -17,3 +17,7 @@ services:
         generateValue: true
       - key: ALLOWED_EMAIL_DOMAIN
         value: fanshaweonline.ca
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
