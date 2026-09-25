@@ -16,14 +16,14 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
         <Logo />
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <Link to="/" className="text-sm font-medium text-ink-soft hover:text-ink">
+          <Link to="/" className="text-sm font-medium text-ink-soft transition hover:text-ink">
             Back to home
           </Link>
         </div>
       </header>
 
       <main className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">
-        <div className="w-full max-w-105">
+        <div className="fade-up w-full max-w-105">
           <div className="rounded-2xl border border-line bg-surface p-8 shadow-sm">
             <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
             {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-soft">{subtitle}</p>}

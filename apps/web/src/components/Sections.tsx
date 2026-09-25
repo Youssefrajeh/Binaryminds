@@ -2,26 +2,18 @@ import type { ReactNode } from "react";
 
 interface Feature {
   title: string;
-  copy: string;
+  description: string;
+  detail: string;
   icon: ReactNode;
 }
-
-const iconProps = {
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.75,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  className: "h-5 w-5",
-};
 
 const features: Feature[] = [
   {
     title: "Marketplace",
-    copy: "Sell textbooks and dorm gear straight to another student in your program. No shipping, no strangers from off campus.",
+    description: "Sell textbooks and dorm gear to students in your program.",
+    detail: "Post a listing in 30 seconds. No shipping — meet on campus.",
     icon: (
-      <svg {...iconProps}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
         <path d="M6 7h12l1 13H5L6 7Z" />
         <path d="M9 7a3 3 0 0 1 6 0" />
       </svg>
@@ -29,9 +21,10 @@ const features: Feature[] = [
   },
   {
     title: "Lost & Found",
-    copy: "Post what you lost or found with a photo and where it turned up, then close the listing once it is back with its owner.",
+    description: "Post what you lost or found with a photo and location.",
+    detail: "Close the listing once it's reunited with its owner.",
     icon: (
-      <svg {...iconProps}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
         <circle cx="11" cy="11" r="6" />
         <path d="m20 20-4.2-4.2" />
       </svg>
@@ -39,9 +32,10 @@ const features: Feature[] = [
   },
   {
     title: "Campus Events",
-    copy: "See what clubs and programs are running this week and RSVP so organizers know who is coming.",
+    description: "See what clubs and programs are running this week.",
+    detail: "RSVP so organizers know who's coming.",
     icon: (
-      <svg {...iconProps}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
         <rect x="4" y="5" width="16" height="15" rx="2" />
         <path d="M4 10h16M9 3v4M15 3v4" />
       </svg>
@@ -51,25 +45,39 @@ const features: Feature[] = [
 
 export function Sections() {
   return (
-    <section className="border-y border-line bg-surface">
-      <div className="mx-auto max-w-6xl px-6 py-16 md:py-20">
-        <div className="max-w-xl">
-          <h2 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+    <section className="border-t border-line bg-surface">
+      <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+        <div className="fade-up max-w-xl">
+          <p className="text-sm font-semibold tracking-wide text-brand uppercase">
+            Features
+          </p>
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
             Everything student life needs
           </h2>
-          <p className="mt-3 text-ink-soft">
-            Three tools that replace the scattered group chats and social feeds.
+          <p className="mt-3 text-base leading-relaxed text-ink-soft">
+            Three tools that replace the scattered group chats and social‑media
+            posts you're currently juggling.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
           {features.map((feature) => (
-            <div key={feature.title} className="rounded-xl border border-line bg-canvas p-6">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand">
+            <div
+              key={feature.title}
+              className="group flex flex-col bg-surface p-8 transition-colors hover:bg-canvas"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand transition-transform group-hover:scale-105">
                 {feature.icon}
               </span>
-              <h3 className="mt-5 text-base font-semibold text-ink">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">{feature.copy}</p>
+              <h3 className="mt-5 text-base font-semibold text-ink">
+                {feature.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+                {feature.description}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {feature.detail}
+              </p>
             </div>
           ))}
         </div>

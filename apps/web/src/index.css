@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f6f6f7;
+  --canvas: #f8f8fa;
   --surface: #ffffff;
   --ink: #111318;
   --ink-soft: #454b57;
   --muted: #737a88;
-  --line: #e3e5e9;
+  --line: #e5e7eb;
   --brand: #b3122e;
   --brand-dark: #8f0e24;
   --brand-soft: #fbeaed;
@@ -88,6 +88,21 @@ body {
   outline-offset: 2px;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Entrance animation                                                 */
+/* ------------------------------------------------------------------ */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer components {
   .field-label {
     @apply mb-1.5 block text-sm font-medium text-ink;
@@ -98,11 +113,11 @@ body {
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition-all hover:bg-brand-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink shadow-xs transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink shadow-xs transition-all hover:bg-canvas active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .alert-error {
@@ -115,5 +130,9 @@ body {
 
   .link {
     @apply font-medium text-brand hover:underline underline-offset-4;
+  }
+
+  .fade-up {
+    animation: fade-up 0.4s ease-out both;
   }
 }
