@@ -1,6 +1,9 @@
+import { isStrongPassword } from "@campushub/shared";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
+import { PasswordInput } from "../components/PasswordInput";
+import { PasswordChecklist } from "../components/PasswordChecklist";
 import api from "../lib/api";
 
 export function RegisterPage() {
@@ -20,8 +23,8 @@ export function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+    if (!isStrongPassword(password)) {
+      setError("Password does not meet all the requirements below");
       return;
     }
 
@@ -80,24 +83,23 @@ export function RegisterPage() {
           <label htmlFor="register-password" className="field-label">
             Password
           </label>
-          <input
+          <PasswordInput
             id="register-password"
-            type="password"
             required
-            placeholder="At least 8 characters"
+            placeholder="Create a strong password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="field-input"
           />
+          <PasswordChecklist password={password} />
         </div>
 
         <div>
           <label htmlFor="register-confirm" className="field-label">
             Confirm password
           </label>
-          <input
+          <PasswordInput
             id="register-confirm"
-            type="password"
             required
             placeholder="Re-enter your password"
             value={confirmPassword}

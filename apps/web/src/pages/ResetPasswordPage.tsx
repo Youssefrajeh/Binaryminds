@@ -1,6 +1,9 @@
+import { isStrongPassword } from "@campushub/shared";
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate, Link } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
+import { PasswordInput } from "../components/PasswordInput";
+import { PasswordChecklist } from "../components/PasswordChecklist";
 import api from "../lib/api";
 
 export function ResetPasswordPage() {
@@ -21,8 +24,8 @@ export function ResetPasswordPage() {
     setError("");
     setSuccess("");
 
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters");
+    if (!isStrongPassword(newPassword)) {
+      setError("Password does not meet all the requirements below");
       return;
     }
 
@@ -103,24 +106,23 @@ export function ResetPasswordPage() {
           <label htmlFor="reset-password" className="field-label">
             New password
           </label>
-          <input
+          <PasswordInput
             id="reset-password"
-            type="password"
             required
-            placeholder="At least 8 characters"
+            placeholder="Create a strong password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             className="field-input"
           />
+          <PasswordChecklist password={newPassword} />
         </div>
 
         <div>
           <label htmlFor="reset-confirm" className="field-label">
             Confirm new password
           </label>
-          <input
+          <PasswordInput
             id="reset-confirm"
-            type="password"
             required
             placeholder="Re-enter your new password"
             value={confirmPassword}

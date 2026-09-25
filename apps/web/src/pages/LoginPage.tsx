@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
+import { PasswordInput } from "../components/PasswordInput";
 import api from "../lib/api";
 
 export function LoginPage() {
@@ -75,9 +76,8 @@ export function LoginPage() {
               Forgot password?
             </Link>
           </div>
-          <input
+          <PasswordInput
             id="login-password"
-            type="password"
             required
             placeholder="Enter your password"
             value={password}

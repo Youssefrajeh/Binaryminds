@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { signToken } from "../lib/jwt.js";
 import { generateOtp } from "../lib/otp.js";
 import { sendEmail, isAllowedDomain } from "../lib/email.js";
+import { passwordSchema } from "../lib/password.js";
 import { verificationEmailHtml, passwordResetEmailHtml } from "../lib/email-templates.js";
 
 export const authRouter = Router();
@@ -18,7 +19,7 @@ const OTP_EXPIRY_MINUTES = 15;
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: passwordSchema,
 });
 
 const loginSchema = z.object({
@@ -38,7 +39,7 @@ const forgotSchema = z.object({
 const resetSchema = z.object({
   email: z.string().email(),
   otp: z.string().length(6),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+  newPassword: passwordSchema,
 });
 
 /* ------------------------------------------------------------------ */
@@ -94,7 +95,7 @@ authRouter.post("/register", async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: "Validation failed",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
       return;
@@ -154,7 +155,7 @@ authRouter.post("/verify", async (req, res) => {
     const parsed = verifySchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: "Validation failed",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
       return;
@@ -217,7 +218,7 @@ authRouter.post("/login", async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: "Validation failed",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
       return;
@@ -277,7 +278,7 @@ authRouter.post("/forgot-password", async (req, res) => {
     const parsed = forgotSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: "Validation failed",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
       return;
@@ -317,7 +318,7 @@ authRouter.post("/reset-password", async (req, res) => {
     const parsed = resetSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
-        error: "Validation failed",
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
       return;
