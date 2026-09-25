@@ -21,3 +21,7 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
