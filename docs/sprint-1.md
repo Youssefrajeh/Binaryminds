@@ -2,7 +2,7 @@
 
 **Sprint dates:** Sep 28 – Oct 9  
 **Points committed:** 16  
-**Status:** Complete ✅ (final version, includes the frontend redesign and dark mode)
+**Status:** Complete ✅ (final version — includes frontend redesign, dark mode, and live email delivery)
 
 ---
 
@@ -25,22 +25,34 @@
 **New files:**
 - `src/routes/auth.ts` — Auth endpoints: register, verify OTP, login, logout, forgot-password, reset-password
 - `src/routes/profile.ts` — Profile endpoints: GET and PUT `/profile/me`
+- `src/routes/health.ts` — Health check endpoint
 - `src/lib/prisma.ts` — Singleton Prisma client
 - `src/lib/jwt.ts` — JWT sign/verify helpers (7-day expiry)
+- `src/lib/otp.ts` — OTP generation utility (6-digit numeric codes)
+- `src/lib/email.ts` — Email sending via Nodemailer + Gmail SMTP (with dev-mode console fallback)
+- `src/lib/email-templates.ts` — Professional HTML email templates for verification and password reset
 - `src/middleware/auth.middleware.ts` — Bearer token extraction and verification
 
 **Modified files:**
-- `prisma/schema.prisma` — Added `otpHash` and `otpExpiresAt` fields to `User` model
-- `src/index.ts` — Registered auth and profile routers
+- `prisma/schema.prisma` — Added `otpHash`, `otpExpiresAt` fields to `User` model; added `PendingRegistration` model for pre-verification storage; full schema for Marketplace, Lost & Found, Events, Messaging, Reports, and Moderation
+- `src/index.ts` — Registered auth, profile, and health routers
 
-**New dependencies:** `bcryptjs`, `jsonwebtoken`, `zod`
+**Dependencies:** `bcryptjs`, `jsonwebtoken`, `zod`, `nodemailer`
 
 **Key implementation details:**
 - Passwords hashed with bcrypt (cost 12) — never stored or logged in plaintext
 - OTP codes are also bcrypt-hashed before storage (15-minute expiry)
 - Only `@fanshaweonline.ca` emails accepted (enforced on both client and server)
 - Forgot-password endpoint returns a constant response to prevent email enumeration
-- No email provider is wired up yet; verification and reset codes are printed to the API console (dev mode)
+- Registration uses a `PendingRegistration` model — the real `User` record is only created after OTP verification, preventing unverified accounts from polluting the database
+- **Email delivery is live** via Gmail SMTP (Nodemailer). Verification and password reset codes are delivered to the student's inbox within seconds
+- Professional branded HTML email templates with:
+  - CampusHub crimson gradient header with logo
+  - Large, monospaced OTP code block (easy to read and copy)
+  - Expiry countdown notice
+  - Contextual tips (verification) and security warnings (password reset)
+  - Full compatibility with Gmail, Outlook, and Apple Mail (inline CSS + table layout)
+- Dev-mode fallback: if `SMTP_USER`/`SMTP_PASS` env vars are missing, codes are printed to the API console instead
 
 ### Frontend (`apps/web`)
 
@@ -68,7 +80,7 @@
 - `src/index.css` — Design tokens and shared component classes (`field-input`, `btn-primary`, `btn-secondary`, `alert-error`, `alert-success`, `link`)
 - `index.html` / `public/favicon.svg` — Inter font, pre-paint theme script, CampusHub favicon
 
-**New dependencies:** `react-router`, `axios`
+**Dependencies:** `react-router`, `axios`
 
 ### Shared Types (`packages/shared`)
 
@@ -76,6 +88,22 @@
 - `RegisterInput`, `LoginInput`, `VerifyOtpInput`, `ForgotPasswordInput`, `ResetPasswordInput`
 - `AuthResponse`, `MessageResponse`, `UserDto`, `ProfileDto`, `UpdateProfileInput`
 - `ApiErrorResponse`
+
+### Database Schema (`prisma/schema.prisma`)
+
+The full Prisma schema includes models for all planned features:
+
+| Model | Purpose | Sprint |
+|---|---|---|
+| `User` | Student accounts with roles and status | Sprint 1 |
+| `PendingRegistration` | Pre-verification OTP storage | Sprint 1 |
+| `Profile` | Display name, program, year, bio, interests | Sprint 1 |
+| `Category` | Marketplace listing categories | Sprint 2 |
+| `Listing` / `ListingImage` | Marketplace listings with photos | Sprint 2 |
+| `Conversation` / `Participant` / `Message` | In-app messaging | Sprint 3 |
+| `LostFoundPost` | Lost & Found posts | Sprint 3 |
+| `Event` / `Rsvp` | Campus events with RSVP | Sprint 4 |
+| `Report` / `ModerationAction` | Content moderation | Sprint 4 |
 
 ---
 
@@ -119,11 +147,11 @@ Re-run against the final code:
 | Forgot password page renders | ✅ |
 | `/profile` redirects unauthenticated → `/login` | ✅ |
 | `GET /profile/me` without a token returns 401 | ✅ |
-| Registration succeeds and issues a verification code | ✅ (code printed to API console in dev mode) |
+| Registration succeeds and issues a verification code | ✅ |
+| Verification email delivered to student inbox (Gmail SMTP) | ✅ |
+| Password reset email delivered with branded template | ✅ |
 
 ### Known limitations
-- Real verification emails are not delivered yet; codes appear in the API console until an email provider is chosen.
-- The post-registration verify, reset-password, and profile-save screens were exercised by hand during development, but they are not covered by automated tests.
 - No automated test suite exists yet; verification is by typecheck, build, and manual checks.
 
 ---
@@ -135,3 +163,4 @@ Re-run against the final code:
 - Browse listings filtered by category and price range
 - Search listings by keyword
 - Mark a listing as sold
+
