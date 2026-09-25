@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { signToken } from "../lib/jwt.js";
 import { generateOtp } from "../lib/otp.js";
 import { sendEmail, isAllowedDomain } from "../lib/email.js";
+import { verificationEmailHtml, passwordResetEmailHtml } from "../lib/email-templates.js";
 
 export const authRouter = Router();
 
@@ -130,7 +131,7 @@ authRouter.post("/register", async (req, res) => {
       await sendEmail({
         to: email,
         subject: "CampusHub — Verify your email",
-        html: `<p>Your verification code is: <strong>${otp}</strong></p><p>It expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
+        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
       });
     } catch (err) {
       await prisma.pendingRegistration.delete({ where: { email } }).catch(() => {});
@@ -297,7 +298,7 @@ authRouter.post("/forgot-password", async (req, res) => {
     await sendEmail({
       to: email,
       subject: "CampusHub — Reset your password",
-      html: `<p>Your password reset code is: <strong>${otp}</strong></p><p>It expires in ${OTP_EXPIRY_MINUTES} minutes.</p>`,
+      html: passwordResetEmailHtml(otp, OTP_EXPIRY_MINUTES),
     });
 
     res.json({ message: "If that email is registered, a reset code has been sent." });
