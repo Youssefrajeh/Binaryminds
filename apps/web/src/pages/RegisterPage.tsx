@@ -151,6 +151,7 @@ export function RegisterPage() {
             id="register-email"
             type="email"
             required
+            autoComplete="off"
             placeholder="you@fanshaweonline.ca"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -165,6 +166,7 @@ export function RegisterPage() {
           <PasswordInput
             id="register-password"
             required
+            autoComplete="new-password"
             placeholder="Create a strong password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -180,6 +182,7 @@ export function RegisterPage() {
           <PasswordInput
             id="register-confirm"
             required
+            autoComplete="new-password"
             placeholder="Re-enter your password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
