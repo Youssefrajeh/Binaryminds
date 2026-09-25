@@ -2,7 +2,7 @@
 
 **Sprint dates:** Sep 28 – Oct 9  
 **Points committed:** 16  
-**Status:** Complete ✅ (final version — includes frontend redesign, dark mode, and live email delivery)
+**Status:** Complete ✅ (final version — includes frontend redesign, dark mode, live email delivery, password strength enforcement, and deployment on Render)
 
 ---
 
@@ -29,7 +29,7 @@
 - `src/lib/prisma.ts` — Singleton Prisma client
 - `src/lib/jwt.ts` — JWT sign/verify helpers (7-day expiry)
 - `src/lib/otp.ts` — OTP generation utility (6-digit numeric codes)
-- `src/lib/email.ts` — Email sending via Nodemailer + Gmail SMTP (with dev-mode console fallback)
+- `src/lib/email.ts` — Multi-provider email service with three transport tiers (Gmail API → Brevo → Gmail SMTP) and dev-mode console fallback
 - `src/lib/email-templates.ts` — Professional HTML email templates for verification and password reset
 - `src/middleware/auth.middleware.ts` — Bearer token extraction and verification
 
@@ -45,19 +45,22 @@
 - Only `@fanshaweonline.ca` emails accepted (enforced on both client and server)
 - Forgot-password endpoint returns a constant response to prevent email enumeration
 - Registration uses a `PendingRegistration` model — the real `User` record is only created after OTP verification, preventing unverified accounts from polluting the database
-- **Email delivery is live** via Gmail SMTP (Nodemailer). Verification and password reset codes are delivered to the student's inbox within seconds
+- **Multi-provider email delivery** with automatic failover:
+  1. **Gmail API (OAuth2 over HTTPS)** — primary provider; uses refresh token to send through the Gmail REST API without SMTP ports
+  2. **Brevo (Sendinblue) API** — HTTPS fallback
+  3. **Gmail SMTP (Nodemailer)** — traditional SMTP fallback
+  4. **Console log** — dev-mode fallback when no credentials are configured
 - Professional branded HTML email templates with:
   - CampusHub crimson gradient header with logo
   - Large, monospaced OTP code block (easy to read and copy)
   - Expiry countdown notice
   - Contextual tips (verification) and security warnings (password reset)
   - Full compatibility with Gmail, Outlook, and Apple Mail (inline CSS + table layout)
-- Dev-mode fallback: if `SMTP_USER`/`SMTP_PASS` env vars are missing, codes are printed to the API console instead
 
 ### Frontend (`apps/web`)
 
 **New files:**
-- `src/pages/RegisterPage.tsx` — Registration form with Fanshawe email validation
+- `src/pages/RegisterPage.tsx` — Registration form with Fanshawe email validation, password strength checklist, and animated password-match indicator
 - `src/pages/VerifyPage.tsx` — 6-digit OTP input with auto-advance and paste support
 - `src/pages/LoginPage.tsx` — Login form with forgot-password link
 - `src/pages/ForgotPasswordPage.tsx` — Email input to request a password reset code
@@ -70,6 +73,8 @@
 - `src/components/ProtectedRoute.tsx` — Route guard redirecting to /login
 - `src/components/Logo.tsx` — CampusHub logo used in the nav, auth pages, and footer
 - `src/components/ThemeToggle.tsx` — Light/dark toggle (sun/moon button)
+- `src/components/PasswordInput.tsx` — Password field with show/hide toggle (eye icon)
+- `src/components/PasswordChecklist.tsx` — Real-time password strength checklist (length, uppercase, number, symbol)
 
 **Modified files:**
 - `src/App.tsx` — Added BrowserRouter with all routes
@@ -77,7 +82,7 @@
 - `src/components/Hero.tsx` — Rebuilt hero with a marketplace preview; CTA navigates to /register (guests) or /profile (logged in)
 - `src/components/Sections.tsx` — Feature cards for Marketplace, Lost & Found, and Events
 - `src/components/Footer.tsx` — Footer with the independent-project disclaimer
-- `src/index.css` — Design tokens and shared component classes (`field-input`, `btn-primary`, `btn-secondary`, `alert-error`, `alert-success`, `link`)
+- `src/index.css` — Design tokens, shared component classes (`field-input`, `btn-primary`, `btn-secondary`, `alert-error`, `alert-success`, `link`), and password-match keyframe animations
 - `index.html` / `public/favicon.svg` — Inter font, pre-paint theme script, CampusHub favicon
 
 **Dependencies:** `react-router`, `axios`
@@ -88,6 +93,8 @@
 - `RegisterInput`, `LoginInput`, `VerifyOtpInput`, `ForgotPasswordInput`, `ResetPasswordInput`
 - `AuthResponse`, `MessageResponse`, `UserDto`, `ProfileDto`, `UpdateProfileInput`
 - `ApiErrorResponse`
+- `isStrongPassword()` — shared password-strength validator
+- `PASSWORD_RULES` — array of rules with `id`, `label`, and `test()` for the frontend checklist
 
 ### Database Schema (`prisma/schema.prisma`)
 
@@ -115,6 +122,12 @@ The UI was redesigned after the first pass to look like a conventional product r
 - **Dark mode with a toggle:** the palette is driven by a `data-theme` attribute. It follows the OS setting until the user picks a theme, then remembers the choice in `localStorage`. An inline script applies it before first paint to avoid a flash
 - Responsive from 360px to 1920px
 
+### UX Enhancements
+- **Password strength checklist** — real-time feedback with ✓/○ indicators for each requirement (length, uppercase, number, symbol)
+- **Show/hide password toggle** — eye icon on all password fields for easy review
+- **Animated password-match indicator** — when the confirm password matches, a green SVG checkmark draws itself in with a shimmer text effect; mismatched passwords show a red border with a gentle hint
+- **Browser autofill disabled** on signup — `autoComplete="off"` on email, `autoComplete="new-password"` on password fields to prevent stale data
+
 ### Screenshots
 
 | Light | Dark |
@@ -123,6 +136,15 @@ The UI was redesigned after the first pass to look like a conventional product r
 | ![Login, light](images/login-light.png) | ![Login, dark](images/login-dark.png) |
 
 See [walkthrough-sprint-1.md](walkthrough-sprint-1.md) for the full page-by-page walkthrough.
+
+---
+
+## Deployment
+
+- **API + Frontend:** Hosted on [Render](https://render.com) as a single monorepo service
+- **Live URL:** `https://campus-hub-229x.onrender.com`
+- **Email provider:** Gmail API (OAuth2 over HTTPS) — works on Render's free tier which blocks SMTP ports
+- **Database:** MongoDB Atlas (free tier)
 
 ---
 
@@ -141,6 +163,8 @@ Re-run against the final code:
 | Nav shows guest/auth state | ✅ |
 | Theme toggle switches and persists the theme | ✅ |
 | Registration page renders | ✅ |
+| Password strength checklist updates in real-time | ✅ |
+| Password match animation plays when passwords match | ✅ |
 | Non-Fanshawe email rejected (API returns error) | ✅ |
 | Login page renders (light and dark) | ✅ |
 | Wrong credentials return a generic error | ✅ |
@@ -148,8 +172,9 @@ Re-run against the final code:
 | `/profile` redirects unauthenticated → `/login` | ✅ |
 | `GET /profile/me` without a token returns 401 | ✅ |
 | Registration succeeds and issues a verification code | ✅ |
-| Verification email delivered to student inbox (Gmail SMTP) | ✅ |
+| Verification email delivered to student inbox (Gmail API) | ✅ |
 | Password reset email delivered with branded template | ✅ |
+| App deployed and accessible on Render | ✅ |
 
 ### Known limitations
 - No automated test suite exists yet; verification is by typecheck, build, and manual checks.
@@ -163,4 +188,3 @@ Re-run against the final code:
 - Browse listings filtered by category and price range
 - Search listings by keyword
 - Mark a listing as sold
-
