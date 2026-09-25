@@ -1,5 +1,4 @@
-# Proxy API requests directly to the Render backend (Zero CORS, seamless proxying)
-/api/*  https://campus-hub-229x.onrender.com/api/:splat  200
-
-# Cloudflare Pages SPA fallback: route all other paths to index.html with 200 status
-/*      /index.html                                       200
+# Cloudflare Pages SPA fallback: route all paths to index.html with 200 status
+# (API calls go directly to Render via VITE_API_URL in .env.production —
+#  Pages _redirects cannot proxy to external domains)
+/*    /index.html   200
