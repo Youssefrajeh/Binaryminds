@@ -1,10 +1,89 @@
 import { isStrongPassword } from "@campushub/shared";
-import { useState, type FormEvent } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { PasswordInput } from "../components/PasswordInput";
 import { PasswordChecklist } from "../components/PasswordChecklist";
 import api from "../lib/api";
+
+/* ------------------------------------------------------------------ */
+/*  Password-match indicator with animated checkmark + shimmer         */
+/* ------------------------------------------------------------------ */
+
+function PasswordMatchIndicator({
+  password,
+  confirmPassword,
+}: {
+  password: string;
+  confirmPassword: string;
+}) {
+  const status = useMemo(() => {
+    if (!confirmPassword) return "idle";
+    if (password === confirmPassword) return "match";
+    return "mismatch";
+  }, [password, confirmPassword]);
+
+  if (status === "idle") return null;
+
+  return (
+    <div
+      className={`mt-2.5 flex items-center gap-2 text-xs font-medium transition-all duration-300 ${
+        status === "match" ? "text-success" : "text-danger"
+      }`}
+      style={{
+        animation:
+          status === "match" ? "matchReveal 0.5s ease-out both" : "none",
+      }}
+    >
+      {status === "match" ? (
+        <>
+          {/* Animated checkmark circle */}
+          <span className="password-match-icon">
+            <svg
+              viewBox="0 0 36 36"
+              fill="none"
+              style={{ width: 22, height: 22 }}
+            >
+              {/* Background circle with draw animation */}
+              <circle
+                cx="18"
+                cy="18"
+                r="16"
+                stroke="var(--success)"
+                strokeWidth="2"
+                fill="var(--success-soft)"
+                style={{
+                  strokeDasharray: 100.5,
+                  strokeDashoffset: 100.5,
+                  animation: "drawCircle 0.4s ease-out 0.1s forwards",
+                }}
+              />
+              {/* Checkmark with draw animation */}
+              <path
+                d="M11 18.5L16 23L25 13"
+                stroke="var(--success)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  strokeDasharray: 22,
+                  strokeDashoffset: 22,
+                  animation: "drawCheck 0.3s ease-out 0.45s forwards",
+                }}
+              />
+            </svg>
+          </span>
+          <span className="password-match-text">Passwords match!</span>
+        </>
+      ) : (
+        <>
+          <span style={{ fontSize: 14, lineHeight: 1 }}>○</span>
+          <span>Passwords don't match yet</span>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -104,7 +183,17 @@ export function RegisterPage() {
             placeholder="Re-enter your password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="field-input"
+            className={`field-input ${
+              confirmPassword
+                ? password === confirmPassword
+                  ? "!border-success !ring-success/10 focus:!border-success"
+                  : "!border-danger !ring-danger/10 focus:!border-danger"
+                : ""
+            }`}
+          />
+          <PasswordMatchIndicator
+            password={password}
+            confirmPassword={confirmPassword}
           />
         </div>
 
