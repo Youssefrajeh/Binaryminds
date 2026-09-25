@@ -1,4 +1,0 @@
-# Cloudflare Pages SPA fallback: route all paths to index.html with 200 status
-# (API calls go directly to Render via VITE_API_URL in .env.production —
-#  Pages _redirects cannot proxy to external domains)
-/*    /index.html   200
