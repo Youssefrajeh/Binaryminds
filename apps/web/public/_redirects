@@ -1,0 +1,2 @@
+# Cloudflare Pages SPA fallback: route all paths to index.html with 200 status
+/*    /index.html   200
