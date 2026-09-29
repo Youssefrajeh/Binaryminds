@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent, type KeyboardEvent } from "react";
+import { useState, useRef, useEffect, useCallback, type FormEvent, type KeyboardEvent } from "react";
 import { useLocation, useNavigate, Link } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +14,37 @@ export function VerifyPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const lastSubmittedOtp = useRef<string>("");
+  const isSubmitting = useRef(false);
+
+  /* Auto-submit when all 6 digits are filled */
+  const submitOtp = useCallback(async (otp: string) => {
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/verify", { email, otp });
+      login(res.data.token, res.data.user);
+      navigate("/", { replace: true });
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Verification failed");
+    } finally {
+      isSubmitting.current = false;
+      setLoading(false);
+    }
+  }, [email, login, navigate]);
+
+  useEffect(() => {
+    const otp = digits.join("");
+    if (otp.length === 6 && otp !== lastSubmittedOtp.current) {
+      lastSubmittedOtp.current = otp;
+      submitOtp(otp);
+    } else if (otp.length < 6) {
+      lastSubmittedOtp.current = "";
+    }
+  }, [digits, submitOtp]);
 
   function handleChange(index: number, value: string) {
     if (!/^\d*$/.test(value)) return;
@@ -47,24 +78,12 @@ export function VerifyPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError("");
-
     const otp = digits.join("");
     if (otp.length !== 6) {
       setError("Please enter the 6-digit code");
       return;
     }
-
-    setLoading(true);
-    try {
-      const res = await api.post("/auth/verify", { email, otp });
-      login(res.data.token, res.data.user);
-      navigate("/", { replace: true });
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Verification failed");
-    } finally {
-      setLoading(false);
-    }
+    submitOtp(otp);
   }
 
   if (!email) {
