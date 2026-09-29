@@ -12,8 +12,8 @@ schedule, risks) and [`docs/adr/`](docs/adr) for architecture decisions.
 
 ```
 apps/
-  web/          React + Vite + TypeScript + Tailwind
-  api/          Express + TypeScript + Prisma
+  web/          React + Vite + TypeScript (frontend)
+  api/          Express + TypeScript + Prisma (backend)
 packages/
   shared/       Shared TypeScript types (API contracts)
 docs/
@@ -23,51 +23,107 @@ docs/
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
-- A [MongoDB Atlas](https://www.mongodb.com/atlas) cluster (free tier works)
+Before you begin, make sure you have:
 
-## Getting started
+- **[Node.js](https://nodejs.org/)** v18 or higher installed (`node -v` to check)
+- **[Git](https://git-scm.com/)** installed (`git --version` to check)
+- A **[MongoDB Atlas](https://www.mongodb.com/atlas)** cluster (free tier works fine)
+
+## Getting started (step by step)
+
+### Step 1 — Clone the repository
 
 ```bash
-# 1. Clone the repo
 git clone https://github.com/Youssefrajeh/Binaryminds.git
 cd Binaryminds
-
-# 2. Install all dependencies (root + all workspaces)
-npm install
-
-# 3. Create your local env file from the template
-#    On macOS / Linux / Git Bash:
-cp apps/api/.env.example apps/api/.env
-#    On Windows PowerShell:
-#    Copy-Item apps/api/.env.example apps/api/.env
 ```
 
-Open `apps/api/.env` and fill in at minimum:
-- `DATABASE_URL` — your MongoDB Atlas connection string
-- `JWT_SECRET` — any secure random string
+### Step 2 — Install all dependencies
+
+This installs packages for the root, the API, the web app, and the shared package:
 
 ```bash
-# 4. Generate the Prisma client
-npm run prisma:generate -w @campushub/api
-
-# 5. Push the schema to your database
-npm run prisma:push -w @campushub/api
-
-# 6. Start the servers (use two terminals)
-npm run dev:api     # → http://localhost:4000
-npm run dev:web     # → http://localhost:5173 (proxies /api → localhost:4000)
+npm install
 ```
+
+### Step 3 — Create your local environment file
+
+Copy the template to create your own `.env` file:
+
+**macOS / Linux / Git Bash:**
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+**Windows PowerShell:**
+```powershell
+Copy-Item apps/api/.env.example apps/api/.env
+```
+
+### Step 4 — Fill in your environment variables
+
+Open `apps/api/.env` in any text editor and fill in **at minimum** these two values:
+
+```env
+DATABASE_URL="mongodb+srv://<username>:<password>@<cluster>.mongodb.net/campushub"
+JWT_SECRET="any-random-secret-string-here"
+```
+
+> **Where to get the DATABASE_URL:** Log in to [MongoDB Atlas](https://cloud.mongodb.com/),
+> click **Connect** on your cluster, choose **Drivers**, and copy the connection string.
+> Replace `<password>` with your database user's password.
+
+The other variables in `.env` (SMTP, Gmail OAuth, Brevo) are for email sending.
+The app will still start without them, but email verification won't work until they're configured.
+
+### Step 5 — Generate the Prisma client
+
+This generates the TypeScript database client from the schema:
+
+```bash
+npm run prisma:generate -w @campushub/api
+```
+
+### Step 6 — Push the schema to your database
+
+This creates all the collections and indexes in your MongoDB Atlas cluster:
+
+```bash
+npm run prisma:push -w @campushub/api
+```
+
+### Step 7 — Start the development servers
+
+You need **two terminals** open:
+
+**Terminal 1 — Backend API:**
+```bash
+npm run dev:api
+```
+The API will be running at **http://localhost:4000**
+
+**Terminal 2 — Frontend Web:**
+```bash
+npm run dev:web
+```
+The web app will be running at **http://localhost:5173**
+
+### Step 8 — Open in your browser
+
+Go to **http://localhost:5173** — you should see the CampusHub app.
+
+The frontend automatically proxies all `/api` requests to `http://localhost:4000`,
+so you don't need to configure anything extra.
 
 ## Scripts (run from repo root)
 
-| Command | Does |
+| Command | What it does |
 |---|---|
-| `npm run dev:api` | Start the API dev server |
-| `npm run dev:web` | Start the web dev server |
-| `npm run build` | Build every workspace |
-| `npm run typecheck` | Typecheck every workspace |
-| `npm run lint` | Lint every workspace |
-| `npm test` | Test every workspace |
+| `npm run dev:api` | Start the API server in dev mode (auto-restarts on changes) |
+| `npm run dev:web` | Start the web app in dev mode (hot reload) |
+| `npm run build` | Build all workspaces for production |
+| `npm run typecheck` | Type-check all workspaces |
+| `npm run lint` | Lint all workspaces |
+| `npm test` | Run tests in all workspaces |
 | `npm run prisma:generate -w @campushub/api` | Regenerate Prisma client after schema changes |
 | `npm run prisma:push -w @campushub/api` | Push schema changes to the database |
