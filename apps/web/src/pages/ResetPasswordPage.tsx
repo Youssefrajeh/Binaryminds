@@ -92,7 +92,7 @@ export function ResetPasswordPage() {
 
   // Step 1: verify code, Step 2: set new password
   const [step, setStep] = useState<1 | 2>(1);
-  const [email, setEmail] = useState(emailFromState);
+  const [email] = useState(emailFromState);
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [verifiedOtp, setVerifiedOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
