@@ -13,6 +13,7 @@ import { EditProfilePage } from "./pages/EditProfilePage";
 import { MessagesPage } from "./pages/MessagesPage";
 import { PublicProfilePage } from "./pages/PublicProfilePage";
 import { StudyGroupsPage } from "./pages/StudyGroupsPage";
+import { TermsPage } from "./pages/TermsPage";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route
             path="/profile"
             element={

@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { LogoMark } from "./Logo";
 
 export function Hero() {
   const { isAuthenticated } = useAuth();
@@ -13,7 +14,7 @@ export function Hero() {
         aria-hidden="true"
       />
 
-      <div className="mx-auto max-w-6xl px-6 pt-20 pb-24 sm:pt-28 sm:pb-32">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 pt-20 pb-24 sm:pt-28 sm:pb-32 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <div className="fade-up max-w-2xl">
           {/* Simple label — no fake badges */}
           <p className="text-sm font-semibold tracking-wide text-brand uppercase">
@@ -54,6 +55,22 @@ export function Hero() {
               <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm3.78 5.28-4.5 5a.75.75 0 0 1-1.06.02l-2-2a.75.75 0 1 1 1.06-1.06l1.46 1.46 3.97-4.42a.75.75 0 0 1 1.07 1Z" />
             </svg>
             Free to join · No setup required · Verified in seconds
+          </p>
+        </div>
+
+        {/* Brand lockup */}
+        <div
+          className="fade-up mx-auto flex w-full max-w-md flex-col items-center rounded-3xl border border-line bg-surface px-8 py-14 text-center shadow-sm lg:py-20"
+          role="img"
+          aria-label="campus-hub: connect, announcements, lost and found"
+        >
+          <LogoMark className="h-28 w-36 sm:h-32 sm:w-44" />
+          <p className="mt-6 text-5xl font-extrabold leading-none tracking-[-0.05em] whitespace-nowrap text-ink" aria-hidden="true">
+            campus<span className="text-[var(--logo-accent)]">-</span>
+            <span className="text-[var(--logo-hub)]">hub</span>
+          </p>
+          <p className="mt-5 font-mono text-[11px] font-medium tracking-[0.18em] text-muted uppercase" aria-hidden="true">
+            Connect · Announcements · Lost &amp; Found
           </p>
         </div>
       </div>

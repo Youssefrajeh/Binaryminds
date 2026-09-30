@@ -73,29 +73,31 @@ model User {
   role            Role       @default(STUDENT)
   status          UserStatus @default(PENDING)
   createdAt       DateTime   @default(now())
+  termsAcceptedAt DateTime?
   otpHash         String?
   otpExpiresAt    DateTime?
 
   profile            Profile?
   listings           Listing[]
   participants       Participant[]
-  sentMessages       Message[]         @relation("MessageSender")
+  sentMessages       Message[]          @relation("MessageSender")
   lostFoundPosts     LostFoundPost[]
   organizedEvents    Event[]
   rsvps              Rsvp[]
   studyGroupsCreated StudyGroup[]
   studyGroups        StudyGroupMember[]
-  reportsFiled       Report[]          @relation("ReportReporter")
+  reportsFiled       Report[]           @relation("ReportReporter")
   moderationActions  ModerationAction[] @relation("ModerationAdmin")
 }
 
 model PendingRegistration {
-  id           String   @id @default(cuid()) @map("_id")
-  email        String   @unique
-  passwordHash String
-  otpHash      String
-  otpExpiresAt DateTime
-  createdAt    DateTime @default(now())
+  id              String    @id @default(cuid()) @map("_id")
+  email           String    @unique
+  passwordHash    String
+  otpHash         String
+  otpExpiresAt    DateTime
+  termsAcceptedAt DateTime?
+  createdAt       DateTime  @default(now())
 }
 
 model Profile {

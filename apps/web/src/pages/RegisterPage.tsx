@@ -90,6 +90,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -112,9 +113,14 @@ export function RegisterPage() {
       return;
     }
 
+    if (!acceptTerms) {
+      setError("Please accept the Terms and Conditions to create your account");
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post("/auth/register", { email, password });
+      await api.post("/auth/register", { email, password, acceptTerms });
       navigate("/verify", { state: { email } });
     } catch (err: any) {
       setError(err.response?.data?.error || "Something went wrong");
@@ -198,6 +204,24 @@ export function RegisterPage() {
             password={password}
             confirmPassword={confirmPassword}
           />
+        </div>
+
+        <div className="flex items-start gap-3">
+          <input
+            id="register-terms"
+            type="checkbox"
+            required
+            checked={acceptTerms}
+            onChange={(e) => setAcceptTerms(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-line accent-brand"
+          />
+          <label htmlFor="register-terms" className="text-sm leading-snug text-ink-soft">
+            I have read and agree to the{" "}
+            <Link to="/terms" target="_blank" rel="noopener noreferrer" className="link">
+              Terms and Conditions
+            </Link>
+            .
+          </label>
         </div>
 
         <button

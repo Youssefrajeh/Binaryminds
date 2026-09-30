@@ -20,6 +20,7 @@ const OTP_EXPIRY_MINUTES = 15;
 const registerSchema = z.object({
   email: z.string().email(),
   password: passwordSchema,
+  acceptTerms: z.literal(true, { error: "You must accept the Terms and Conditions to sign up" }),
 });
 
 const loginSchema = z.object({
@@ -122,10 +123,13 @@ authRouter.post("/register", async (req, res) => {
     const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
     const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
+    // Record when the Terms were accepted; carried onto the user at verification
+    const termsAcceptedAt = new Date();
+
     await prisma.pendingRegistration.upsert({
       where: { email },
-      create: { email, passwordHash, otpHash, otpExpiresAt },
-      update: { passwordHash, otpHash, otpExpiresAt, createdAt: new Date() },
+      create: { email, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt },
+      update: { passwordHash, otpHash, otpExpiresAt, termsAcceptedAt, createdAt: new Date() },
     });
 
     try {
@@ -194,6 +198,7 @@ authRouter.post("/verify", async (req, res) => {
         email,
         passwordHash: pending.passwordHash,
         emailVerifiedAt: new Date(),
+        termsAcceptedAt: pending.termsAcceptedAt,
         status: "ACTIVE",
       },
       include: { profile: true },

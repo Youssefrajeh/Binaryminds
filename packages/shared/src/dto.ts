@@ -7,6 +7,8 @@
 export interface RegisterInput {
   email: string;
   password: string;
+  /** Must be true: the user accepted the Terms and Conditions */
+  acceptTerms: boolean;
 }
 
 export interface LoginInput {
