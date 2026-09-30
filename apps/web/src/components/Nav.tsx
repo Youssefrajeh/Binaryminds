@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
+import { Avatar } from "./Avatar";
 import { useAuth } from "../context/AuthContext";
 
 const navLink =
@@ -22,8 +23,9 @@ export function Nav() {
           <ThemeToggle />
           {isAuthenticated ? (
             <>
-              <Link to="/profile" className={navLink}>
-                {name}
+              <Link to="/profile" className={`${navLink} flex items-center gap-2`}>
+                <Avatar name={name} src={user?.profile?.avatarUrl} className="h-7 w-7 text-xs" />
+
               </Link>
               <button onClick={logout} className="btn-secondary">
                 Log out
@@ -67,8 +69,9 @@ export function Nav() {
           <nav className="flex flex-col gap-1">
             {isAuthenticated ? (
               <>
-                <Link to="/profile" className={navLink} onClick={() => setMobileOpen(false)}>
-                  {name}
+                <Link to="/profile" className={`${navLink} flex items-center gap-2`} onClick={() => setMobileOpen(false)}>
+                  <Avatar name={name} src={user?.profile?.avatarUrl} className="h-7 w-7 text-xs" />
+
                 </Link>
                 <button
                   onClick={() => { logout(); setMobileOpen(false); }}

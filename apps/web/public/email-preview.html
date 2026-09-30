@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusHub Email Templates Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    .header-bar {
+      max-width: 1100px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: #1e293b;
+      padding: 16px 24px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .title-group p {
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      background: #334155;
+      color: #f1f5f9;
+      border: 1px solid #475569;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #475569;
+    }
+    .btn.active {
+      background: #b3122e;
+      border-color: #b3122e;
+      color: #fff;
+    }
+    .preview-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    @media (min-width: 900px) {
+      .preview-container.side-by-side {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    .preview-card {
+      background: #1e293b;
+      border-radius: 14px;
+      border: 1px solid #334155;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-top {
+      padding: 12px 20px;
+      background: #0f172a;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-top span {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #cbd5e1;
+    }
+    .frame-wrapper {
+      padding: 20px;
+      background: #f4f5f7;
+      min-height: 720px;
+    }
+    iframe {
+      width: 100%;
+      height: 720px;
+      border: none;
+      border-radius: 12px;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div class="title-group">
+      <h1>CampusHub Email Templates Live Preview</h1>
+      <p>Rendered from <code>apps/api/src/lib/email-templates.ts</code></p>
+    </div>
+    <div class="controls">
+      <button class="btn active" id="btn-both" onclick="setView('both')">Side-by-side</button>
+      <button class="btn" id="btn-verify" onclick="setView('verify')">Verification Only</button>
+      <button class="btn" id="btn-reset" onclick="setView('reset')">Password Reset Only</button>
+    </div>
+  </div>
+
+  <div class="preview-container side-by-side" id="container">
+    <div class="preview-card" id="card-verify">
+      <div class="card-top">
+        <span>✉️ Verification Email</span>
+        <span style="color:#64748b; font-size:11px;">Subject: Verify your CampusHub account</span>
+      </div>
+      <div class="frame-wrapper">
+        <iframe id="frame-verify"></iframe>
+      </div>
+    </div>
+
+    <div class="preview-card" id="card-reset">
+      <div class="card-top">
+        <span>🔐 Password Reset Email</span>
+        <span style="color:#64748b; font-size:11px;">Subject: Reset your CampusHub password</span>
+      </div>
+      <div class="frame-wrapper">
+        <iframe id="frame-reset"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BRAND = "#b3122e";
+    const BRAND_DARK = "#8f0e24";
+    const BRAND_SOFT = "#fbeaed";
+
+    function layout(content) {
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CampusHub</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background:linear-gradient(135deg,${BRAND} 0%,${BRAND_DARK} 100%);padding:32px 40px;text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  <td style="width:42px;height:42px;background:rgba(255,255,255,0.18);border-radius:12px;text-align:center;vertical-align:middle;font-size:22px;color:#ffffff;font-weight:bold;">
+                    ✦
+                  </td>
+                  <td style="padding-left:14px;">
+                    <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Campus</span><span style="font-size:24px;font-weight:700;color:rgba(255,255,255,0.85);letter-spacing:-0.5px;">Hub</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">
+                Fanshawe College Student Portal
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:36px 40px 40px;">
+              ${content}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-top:1px solid #eef0f3;padding-top:24px;text-align:center;">
+                    <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">
+                      This email was sent by CampusHub for Fanshawe College students.
+                    </p>
+                    <p style="margin:0;font-size:12px;color:#9ca3af;">
+                      If you didn't request this, you can safely ignore this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:24px 0 0;font-size:11px;color:#b0b5bf;text-align:center;">
+          © ${new Date().getFullYear()} CampusHub · Built by Binary Minds
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+    }
+
+    function otpBlock(otp) {
+      return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+        <tr>
+          <td align="center">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:${BRAND_SOFT};border:2px dashed ${BRAND};border-radius:12px;padding:0;">
+              <tr>
+                <td style="padding:18px 36px;">
+                  <span style="font-size:36px;font-weight:800;letter-spacing:8px;color:${BRAND};font-family:'Courier New',Courier,monospace;">
+                    ${otp}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+    }
+
+    function verificationEmailHtml(otp, expiryMinutes) {
+      return layout(`
+        <div style="text-align:center;margin-bottom:8px;">
+          <span style="display:inline-block;width:56px;height:56px;line-height:56px;border-radius:50%;background-color:${BRAND_SOFT};font-size:26px;text-align:center;">
+            ✉️
+          </span>
+        </div>
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111318;text-align:center;">
+          Verify Your Email
+        </h1>
+        <p style="margin:0 0 4px;font-size:15px;color:#454b57;text-align:center;line-height:1.6;">
+          Welcome to CampusHub! Enter the code below to verify your Fanshawe student email and activate your account.
+        </p>
+        ${otpBlock(otp)}
+        <p style="margin:0 0 24px;font-size:13px;color:#737a88;text-align:center;">
+          This code expires in <strong style="color:#454b57;">${expiryMinutes} minutes</strong>.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb;border-radius:10px;">
+          <tr>
+            <td style="padding:16px 20px;">
+              <p style="margin:0;font-size:13px;color:#737a88;line-height:1.5;">
+                <strong style="color:#454b57;">💡 Tip:</strong> Copy and paste the code into the verification page. Don't share this code with anyone.
+              </p>
+            </td>
+          </tr>
+        </table>
+      `);
+    }
+
+    function passwordResetEmailHtml(otp, expiryMinutes) {
+      return layout(`
+        <div style="text-align:center;margin-bottom:8px;">
+          <span style="display:inline-block;width:56px;height:56px;line-height:56px;border-radius:50%;background-color:${BRAND_SOFT};font-size:26px;text-align:center;">
+            🔐
+          </span>
+        </div>
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111318;text-align:center;">
+          Reset Your Password
+        </h1>
+        <p style="margin:0 0 4px;font-size:15px;color:#454b57;text-align:center;line-height:1.6;">
+          We received a request to reset the password for your CampusHub account. Use the code below to set a new password.
+        </p>
+        ${otpBlock(otp)}
+        <p style="margin:0 0 24px;font-size:13px;color:#737a88;text-align:center;">
+          This code expires in <strong style="color:#454b57;">${expiryMinutes} minutes</strong>.
+        </p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef3f2;border-radius:10px;">
+          <tr>
+            <td style="padding:16px 20px;">
+              <p style="margin:0;font-size:13px;color:#737a88;line-height:1.5;">
+                <strong style="color:#b42318;">⚠️ Security:</strong> If you didn't request a password reset, please ignore this email. Your account is safe.
+              </p>
+            </td>
+          </tr>
+        </table>
+      `);
+    }
+
+    document.getElementById("frame-verify").srcdoc = verificationEmailHtml("749281", 15);
+    document.getElementById("frame-reset").srcdoc = passwordResetEmailHtml("382910", 15);
+
+    function setView(view) {
+      const container = document.getElementById("container");
+      const cardVerify = document.getElementById("card-verify");
+      const cardReset = document.getElementById("card-reset");
+      document.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
+
+      if (view === "both") {
+        document.getElementById("btn-both").classList.add("active");
+        container.className = "preview-container side-by-side";
+        cardVerify.style.display = "flex";
+        cardReset.style.display = "flex";
+      } else if (view === "verify") {
+        document.getElementById("btn-verify").classList.add("active");
+        container.className = "preview-container";
+        cardVerify.style.display = "flex";
+        cardReset.style.display = "none";
+      } else if (view === "reset") {
+        document.getElementById("btn-reset").classList.add("active");
+        container.className = "preview-container";
+        cardVerify.style.display = "none";
+        cardReset.style.display = "flex";
+      }
+    }
+  </script>
+</body>
+</html>

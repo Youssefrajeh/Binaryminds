@@ -1,10 +1,12 @@
 import { useState, useEffect, type FormEvent, type KeyboardEvent } from "react";
+import { Link, useNavigate } from "react-router";
 import { Nav } from "../components/Nav";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
 
-export function ProfilePage() {
+export function EditProfilePage() {
   const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState("");
   const [program, setProgram] = useState("");
@@ -13,7 +15,6 @@ export function ProfilePage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [interestInput, setInterestInput] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -59,7 +60,6 @@ export function ProfilePage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    setSuccess("");
 
     if (!displayName.trim()) {
       setError("Display name is required");
@@ -79,8 +79,7 @@ export function ProfilePage() {
       const profileRes = await api.get("/profile/me");
       updateUser(profileRes.data);
 
-      setSuccess("Profile saved!");
-      setTimeout(() => setSuccess(""), 3000);
+      navigate("/profile", { state: { saved: true } });
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to save profile");
     } finally {
@@ -92,7 +91,8 @@ export function ProfilePage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
       <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Your profile</h1>
+        <Link to="/profile" className="link text-sm">← Back to profile</Link>
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Edit profile</h1>
         <p className="mt-1.5 text-sm text-ink-soft">
           This is how other Fanshawe students see you on CampusHub.
         </p>
@@ -105,11 +105,6 @@ export function ProfilePage() {
           {error && (
             <div className="alert-error">
               {error}
-            </div>
-          )}
-          {success && (
-            <div className="alert-success">
-              {success}
             </div>
           )}
 
@@ -225,13 +220,18 @@ export function ProfilePage() {
             </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary px-6"
-          >
-            {loading ? "Saving…" : "Save profile"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary px-6"
+            >
+              {loading ? "Saving…" : "Save profile"}
+            </button>
+            <Link to="/profile" className="btn-secondary px-6">
+              Cancel
+            </Link>
+          </div>
         </form>
           )}
         </div>

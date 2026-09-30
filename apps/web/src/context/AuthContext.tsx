@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from "react";
 import type { UserDto } from "@campushub/shared";
 
 interface AuthState {
@@ -37,10 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  function updateUser(updatedUser: UserDto) {
+  const updateUser = useCallback((updatedUser: UserDto) => {
     localStorage.setItem("campushub_user", JSON.stringify(updatedUser));
     setUser(updatedUser);
-  }
+  }, []);
 
   useEffect(() => {
     if (token && !user) {

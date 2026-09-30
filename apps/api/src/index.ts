@@ -10,7 +10,8 @@ import { profileRouter } from "./routes/profile.js";
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// 1mb leaves room for resized profile photos sent as data URLs
+app.use(express.json({ limit: "1mb" }));
 
 const apiRouter = express.Router();
 apiRouter.use("/health", healthRouter);
