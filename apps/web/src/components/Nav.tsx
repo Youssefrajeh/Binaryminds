@@ -30,6 +30,9 @@ export function Nav() {
         {/* Desktop nav */}
         <nav className="hidden items-center gap-2 sm:flex">
           <ThemeToggle />
+          <Link to="/about" className={navLink}>
+            About
+          </Link>
           {isAuthenticated ? (
             <>
               <Link to="/study-groups" className={navLink}>
@@ -86,6 +89,9 @@ export function Nav() {
       {mobileOpen && (
         <div className="border-t border-line bg-surface px-6 pb-4 pt-2 sm:hidden">
           <nav className="flex flex-col gap-1">
+            <Link to="/about" className={navLink} onClick={() => setMobileOpen(false)}>
+              About
+            </Link>
             {isAuthenticated ? (
               <>
                 <Link to="/messages" className={`${navLink} flex items-center gap-1.5`} onClick={() => setMobileOpen(false)}>

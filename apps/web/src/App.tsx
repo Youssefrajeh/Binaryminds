@@ -14,6 +14,7 @@ import { MessagesPage } from "./pages/MessagesPage";
 import { PublicProfilePage } from "./pages/PublicProfilePage";
 import { StudyGroupsPage } from "./pages/StudyGroupsPage";
 import { TermsPage } from "./pages/TermsPage";
+import { AboutPage } from "./pages/AboutPage";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/terms" element={<TermsPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route
             path="/profile"
             element={

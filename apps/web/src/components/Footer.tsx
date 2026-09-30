@@ -49,6 +49,7 @@ export function Footer() {
           <nav aria-label="About" className="md:col-span-2">
             <p className={heading}>About</p>
             <ul className="mt-3 space-y-2">
+              <li><Link to="/about" className={linkClass}>About campus-hub</Link></li>
               <li><Link to="/terms" className={linkClass}>Terms &amp; Conditions</Link></li>
               <li>
                 <a
