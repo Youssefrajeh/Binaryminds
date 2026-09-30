@@ -13,7 +13,7 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-6 py-12">
         <div className="grid gap-10 sm:grid-cols-3 md:grid-cols-12 md:gap-8">
           <div className="sm:col-span-3 md:col-span-6">
-            <Logo size="sm" showFanshawe={false} />
+            <Logo size="sm" />
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted">
               A student-built platform for the Fanshawe College community.
               Not affiliated with or endorsed by Fanshawe College.

@@ -1,35 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="chGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c8102e" />
-      <stop offset="50%" stop-color="#b3122e" />
-      <stop offset="100%" stop-color="#800b1e" />
-    </linearGradient>
-    <linearGradient id="chGloss" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
-      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
-    </linearGradient>
-  </defs>
-  <!-- Rounded Squircle Background in Official Fanshawe Crimson -->
-  <rect width="48" height="48" rx="12" fill="url(#chGrad)" />
-  <rect width="48" height="48" rx="12" fill="url(#chGloss)" />
-
-  <!-- Fanshawe NorthStar 4 Outward-Facing F Points -->
-  <path d="M24 4L27.5 14H20.5L24 4Z" fill="#ffffff" opacity="0.95" />
-  <path d="M27.5 10H33V13H27.5V10Z" fill="#ffffff" opacity="0.85" />
-  
-  <path d="M24 44L20.5 34H27.5L24 44Z" fill="#ffffff" opacity="0.95" />
-  <path d="M20.5 38H15V35H20.5V38Z" fill="#ffffff" opacity="0.85" />
-
-  <path d="M44 24L34 27.5V20.5L44 24Z" fill="#ffffff" opacity="0.95" />
-  <path d="M38 27.5V33H35V27.5H38Z" fill="#ffffff" opacity="0.85" />
-
-  <path d="M4 24L14 20.5V27.5L4 24Z" fill="#ffffff" opacity="0.95" />
-  <path d="M10 20.5V15H13V20.5H10Z" fill="#ffffff" opacity="0.85" />
-
-  <!-- Center Academic Graduation Mortarboard -->
-  <path d="M24 16L13 22.5L24 29L35 22.5L24 16Z" fill="#ffffff" stroke="rgba(255,255,255,0.6)" stroke-width="0.8" />
-  
-  <!-- Central Hub Connection Node -->
-  <circle cx="24" cy="24" r="3" fill="#b3122e" stroke="#ffffff" stroke-width="1.5" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 36" width="48" height="36">
+  <path d="M6 18.5L24 4L42 18.5" fill="none" stroke="#b3122e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15 30L24 27L33 30" fill="none" stroke="#1c1917" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="15" cy="30" r="3.8" fill="#1c1917"/>
+  <circle cx="33" cy="30" r="3.8" fill="#1c1917"/>
+  <circle cx="24" cy="27" r="4.3" fill="#f2a33a"/>
 </svg>

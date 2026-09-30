@@ -14,6 +14,10 @@
   --danger-soft: #fef3f2;
   --success: #067647;
   --success-soft: #ecfdf3;
+  --logo-roof: #b3122e;
+  --logo-node: #1c1917;
+  --logo-accent: #f2a33a;
+  --logo-hub: #b3122e;
   color-scheme: light;
 }
 
@@ -32,6 +36,10 @@
     --danger-soft: #2a1513;
     --success: #47cd89;
     --success-soft: #0f2419;
+    --logo-roof: #f5f0ea;
+    --logo-node: #f5f0ea;
+    --logo-accent: #f2a33a;
+    --logo-hub: #f2a33a;
     color-scheme: dark;
 }
 
