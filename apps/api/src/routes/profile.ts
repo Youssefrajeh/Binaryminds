@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { PublicProfileDto } from "@campushub/shared";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
@@ -159,6 +160,40 @@ profileRouter.delete("/me/avatar", requireAuth, async (req, res) => {
     res.json(profile);
   } catch (err) {
     console.error("Delete avatar error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  GET /profile/:userId — public view of another student              */
+/* ------------------------------------------------------------------ */
+
+profileRouter.get("/:userId", requireAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      include: { profile: true },
+    });
+
+    if (!user || user.status !== "ACTIVE") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const profile: PublicProfileDto = {
+      id: user.id,
+      displayName: user.profile?.displayName || defaultDisplayName(user.email),
+      avatarUrl: user.profile?.avatarUrl ?? null,
+      program: user.profile?.program ?? null,
+      yearOfStudy: user.profile?.yearOfStudy ?? null,
+      bio: user.profile?.bio ?? null,
+      interests: user.profile?.interests ?? [],
+      createdAt: user.createdAt.toISOString(),
+    };
+
+    res.json(profile);
+  } catch (err) {
+    console.error("Get public profile error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

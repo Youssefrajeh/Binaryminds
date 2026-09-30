@@ -64,12 +64,107 @@ export interface ProfileDto {
   interests: string[];
 }
 
+/** What other students can see about a user */
+export interface PublicProfileDto {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  program: string | null;
+  yearOfStudy: number | null;
+  bio: string | null;
+  interests: string[];
+  createdAt: string;
+}
+
 export interface UpdateProfileInput {
   displayName: string;
   program?: string | null;
   yearOfStudy?: number | null;
   bio?: string | null;
   interests?: string[];
+}
+
+/* ---- Messaging ---- */
+
+export type ConversationType = "DIRECT" | "GROUP";
+export type ConversationStatus = "PENDING" | "ACCEPTED";
+export type ConversationTab = "inbox" | "requests";
+
+export interface AttachmentDto {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+export interface ConversationMemberDto {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+export interface LastMessageDto {
+  text: string;
+  senderId: string;
+  createdAt: string;
+}
+
+export interface ConversationDto {
+  id: string;
+  type: ConversationType;
+  /** Group name, or the other person's display name for a DM */
+  name: string;
+  status: ConversationStatus;
+  /** True when someone else started this DM and I have not accepted it yet */
+  isRequest: boolean;
+  /** I blocked this conversation (it is hidden from my lists) */
+  blockedByMe: boolean;
+  studyGroupId: string | null;
+  members: ConversationMemberDto[];
+  lastMessage: LastMessageDto | null;
+  unreadCount: number;
+  updatedAt: string;
+}
+
+export interface MessageDto {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  text: string;
+  attachments: AttachmentDto[];
+  clientId: string | null;
+  createdAt: string;
+}
+
+export interface MessagesPageDto {
+  messages: MessageDto[];
+  hasMore: boolean;
+  /** Pass as `before` to load the next (older) page */
+  nextCursor: string | null;
+}
+
+export interface StartConversationInput {
+  recipientId: string;
+}
+
+/* ---- Study groups ---- */
+
+export interface StudyGroupDto {
+  id: string;
+  name: string;
+  courseCode: string;
+  description: string | null;
+  memberCount: number;
+  isMember: boolean;
+  /** The group's chat; only returned to members */
+  conversationId: string | null;
+  createdAt: string;
+}
+
+export interface CreateStudyGroupInput {
+  name: string;
+  courseCode: string;
+  description?: string | null;
 }
 
 /* ---- API Error ---- */

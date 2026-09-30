@@ -41,6 +41,16 @@ enum EventStatus {
   CANCELLED
 }
 
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum ConversationStatus {
+  PENDING
+  ACCEPTED
+}
+
 enum ReportTargetType {
   LISTING
   LOST_FOUND_POST
@@ -73,6 +83,8 @@ model User {
   lostFoundPosts     LostFoundPost[]
   organizedEvents    Event[]
   rsvps              Rsvp[]
+  studyGroupsCreated StudyGroup[]
+  studyGroups        StudyGroupMember[]
   reportsFiled       Report[]          @relation("ReportReporter")
   moderationActions  ModerationAction[] @relation("ModerationAdmin")
 }
@@ -134,13 +146,31 @@ model ListingImage {
 }
 
 model Conversation {
-  id        String   @id @default(cuid()) @map("_id")
-  listingId String?
-  listing   Listing? @relation(fields: [listingId], references: [id])
-  createdAt DateTime @default(now())
+  id            String             @id @default(cuid()) @map("_id")
+  type          ConversationType   @default(DIRECT)
+  name          String?
+  studyGroupId  String?
+  status        ConversationStatus @default(PENDING)
+  requestedById String?
+  // DIRECT: sorted "userA_userB"; GROUP: "group:<studyGroupId>". Never null, so the
+  // unique index also prevents duplicate DMs (MongoDB unique indexes treat nulls as equal).
+  directKey     String             @unique
+  lastMessage   LastMessage?
+  listingId     String?
+  listing       Listing?           @relation(fields: [listingId], references: [id])
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
   participants Participant[]
   messages     Message[]
+
+  @@index([updatedAt(sort: Desc)])
+}
+
+type LastMessage {
+  text      String
+  senderId  String
+  createdAt DateTime
 }
 
 model Participant {
@@ -149,8 +179,13 @@ model Participant {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id])
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+  blockedAt      DateTime?
+  ignoredAt      DateTime?
 
   @@unique([conversationId, userId])
+  @@index([userId])
 }
 
 model Message {
@@ -159,9 +194,43 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User         @relation("MessageSender", fields: [senderId], references: [id])
-  body           String
-  sentAt         DateTime     @default(now())
-  readAt         DateTime?
+  text           String
+  attachments    Attachment[]
+  clientId       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt(sort: Desc)])
+}
+
+type Attachment {
+  url      String
+  name     String
+  mimeType String
+  size     Int
+}
+
+model StudyGroup {
+  id          String   @id @default(cuid()) @map("_id")
+  name        String
+  courseCode  String
+  description String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  members StudyGroupMember[]
+}
+
+model StudyGroupMember {
+  id           String     @id @default(cuid()) @map("_id")
+  studyGroupId String
+  studyGroup   StudyGroup @relation(fields: [studyGroupId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  joinedAt     DateTime   @default(now())
+
+  @@unique([studyGroupId, userId])
+  @@index([userId])
 }
 
 model LostFoundPost {

@@ -1,38 +1,12 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import cors from "cors";
-import express from "express";
-import { healthRouter } from "./routes/health.js";
-import { authRouter } from "./routes/auth.js";
-import { profileRouter } from "./routes/profile.js";
+import { createServer } from "node:http";
+import { createApp } from "./app.js";
+import { createSocketServer } from "./socket/index.js";
 
-const app = express();
-
-app.use(cors());
-// 1mb leaves room for resized profile photos sent as data URLs
-app.use(express.json({ limit: "1mb" }));
-
-const apiRouter = express.Router();
-apiRouter.use("/health", healthRouter);
-apiRouter.use("/auth", authRouter);
-apiRouter.use("/profile", profileRouter);
-
-app.use("/api", apiRouter);
-app.use("/", apiRouter);
-
-const webDist = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../web/dist"
-);
-if (existsSync(webDist)) {
-  app.use(express.static(webDist));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(webDist, "index.html"));
-  });
-}
+const app = createApp();
+const server = createServer(app);
+createSocketServer(server);
 
 const port = Number(process.env.PORT) || 4000;
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`CampusHub API listening on :${port}`);
 });

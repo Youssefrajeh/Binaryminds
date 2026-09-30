@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router";
 import { AuthProvider } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./pages/LandingPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -9,11 +10,15 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
+import { MessagesPage } from "./pages/MessagesPage";
+import { PublicProfilePage } from "./pages/PublicProfilePage";
+import { StudyGroupsPage } from "./pages/StudyGroupsPage";
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SocketProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -37,7 +42,40 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <MessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages/:conversationId"
+            element={
+              <ProtectedRoute>
+                <MessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/u/:userId"
+            element={
+              <ProtectedRoute>
+                <PublicProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/study-groups"
+            element={
+              <ProtectedRoute>
+                <StudyGroupsPage />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   );
