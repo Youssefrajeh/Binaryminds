@@ -165,6 +165,50 @@ profileRouter.delete("/me/avatar", requireAuth, async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  GET /profile/search?q= — find students by name                      */
+/*  Must be registered before /:userId or it would be shadowed.         */
+/* ------------------------------------------------------------------ */
+
+const MAX_SEARCH_RESULTS = 20;
+
+profileRouter.get("/search", requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    if (q.length < 2) {
+      res.json([]);
+      return;
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        id: { not: req.user!.userId },
+        OR: [
+          { profile: { is: { displayName: { contains: q, mode: "insensitive" } } } },
+          // Students without a profile are shown by the part of their email before the @
+          { email: { startsWith: q, mode: "insensitive" } },
+        ],
+      },
+      include: { profile: true },
+      orderBy: { createdAt: "desc" },
+      take: MAX_SEARCH_RESULTS,
+    });
+
+    const results = users.map((user) => ({
+      id: user.id,
+      displayName: user.profile?.displayName || defaultDisplayName(user.email),
+      avatarUrl: user.profile?.avatarUrl ?? null,
+      program: user.profile?.program ?? null,
+    }));
+
+    res.json(results);
+  } catch (err) {
+    console.error("Search members error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
 /*  GET /profile/:userId — public view of another student              */
 /* ------------------------------------------------------------------ */
 

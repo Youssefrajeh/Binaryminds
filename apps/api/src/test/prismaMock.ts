@@ -6,7 +6,7 @@ import { vi } from "vitest";
  */
 export function createPrismaMock() {
   return {
-    user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    user: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     pendingRegistration: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn() },
     profile: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     category: { findMany: vi.fn(), findUnique: vi.fn() },

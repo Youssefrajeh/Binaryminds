@@ -52,6 +52,9 @@ export function Nav() {
               <Link to="/marketplace" className={navLink}>
                 Marketplace
               </Link>
+              <Link to="/members" className={navLink}>
+                Students
+              </Link>
               <Link
                 to="/profile"
                 className={`${navLink} flex items-center gap-2`}
@@ -142,6 +145,13 @@ export function Nav() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Study groups
+                </Link>
+                <Link
+                  to="/members"
+                  className={navLink}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Students
                 </Link>
                 <Link
                   to="/profile"

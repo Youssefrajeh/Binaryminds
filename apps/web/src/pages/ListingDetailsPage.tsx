@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { Avatar } from "../components/Avatar";
+import { MessageButton } from "../components/MessageButton";
 
 type ListingImage = {
   id: string;
@@ -127,25 +129,19 @@ export function ListingDetailsPage() {
               <div className="mt-8 border-t border-line pt-6">
                 <p className="text-sm font-semibold text-ink">Seller</p>
 
-                <div className="mt-3 flex items-center gap-3">
-                  {listing.seller.profile?.avatarUrl ? (
-                    <img
-                      src={listing.seller.profile.avatarUrl}
-                      alt={listing.seller.profile.displayName}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-sm font-medium text-ink-soft">
-                      {listing.seller.profile?.displayName
-                        ?.charAt(0)
-                        .toUpperCase() || "S"}
-                    </div>
-                  )}
+                <Link
+                  to={`/u/${listing.seller.id}`}
+                  className="mt-3 flex w-fit items-center gap-3 hover:opacity-90"
+                >
+                  <Avatar
+                    name={listing.seller.profile?.displayName || "CampusHub seller"}
+                    src={listing.seller.profile?.avatarUrl}
+                  />
 
-                  <p className="text-sm text-ink">
+                  <span className="text-sm text-ink hover:underline">
                     {listing.seller.profile?.displayName || "CampusHub seller"}
-                  </p>
-                </div>
+                  </span>
+                </Link>
               </div>
 
               <div className="mt-8">
@@ -156,12 +152,11 @@ export function ListingDetailsPage() {
 
               {user?.id !== listing.seller.id && (
                 <div className="mt-6">
-                  <Link
-                    to={`/messages?userId=${listing.seller.id}`}
+                  <MessageButton
+                    recipientId={listing.seller.id}
+                    label="Message Seller"
                     className="btn-primary inline-flex w-full justify-center px-6 py-3"
-                  >
-                    Message Seller
-                  </Link>
+                  />
                 </div>
               )}
             </div>

@@ -130,3 +130,45 @@ describe("GET /api/profile/:userId", () => {
     expect(res.body.email).toBeUndefined();
   });
 });
+
+describe("GET /api/profile/search", () => {
+  it("requires auth", async () => {
+    expect((await request(app).get("/api/profile/search?q=al")).status).toBe(401);
+  });
+
+  it("returns nothing for queries shorter than 2 characters", async () => {
+    const res = await request(app).get("/api/profile/search?q=a").set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("is not shadowed by /:userId", async () => {
+    prisma.user.findMany.mockResolvedValue([]);
+    await request(app).get("/api/profile/search?q=bob").set("Authorization", auth);
+    expect(prisma.user.findMany).toHaveBeenCalled();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("searches active users other than the caller", async () => {
+    prisma.user.findMany.mockResolvedValue([]);
+    await request(app).get("/api/profile/search?q=bob").set("Authorization", auth);
+    const { where, take } = prisma.user.findMany.mock.calls[0][0];
+    expect(where.status).toBe("ACTIVE");
+    expect(where.id).toEqual({ not: "alice" });
+    expect(take).toBe(20);
+  });
+
+  it("returns public fields only, with a fallback display name", async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { ...user, id: "b1", email: "bob@fanshaweonline.ca", passwordHash: "secret", profile: { displayName: "Bob B", avatarUrl: "x", program: "CS", bio: "private-ish" } },
+      { ...user, id: "c1", email: "carol@fanshaweonline.ca", profile: null },
+    ]);
+    const res = await request(app).get("/api/profile/search?q=bo").set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      { id: "b1", displayName: "Bob B", avatarUrl: "x", program: "CS" },
+      { id: "c1", displayName: "carol", avatarUrl: null, program: null },
+    ]);
+  });
+});

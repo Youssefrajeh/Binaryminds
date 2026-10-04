@@ -13,6 +13,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
 import { MessagesPage } from "./pages/MessagesPage";
 import { PublicProfilePage } from "./pages/PublicProfilePage";
+import { MembersPage } from "./pages/MembersPage";
 import { StudyGroupsPage } from "./pages/StudyGroupsPage";
 import { TermsPage } from "./pages/TermsPage";
 import { AboutPage } from "./pages/AboutPage";
@@ -72,6 +73,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PublicProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/members"
+              element={
+                <ProtectedRoute>
+                  <MembersPage />
                 </ProtectedRoute>
               }
             />
