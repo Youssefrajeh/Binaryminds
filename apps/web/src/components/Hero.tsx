@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
-import { LogoMark } from "./Logo";
 
 export function Hero() {
   const { isAuthenticated } = useAuth();
@@ -59,19 +58,14 @@ export function Hero() {
         </div>
 
         {/* Brand lockup */}
-        <div
-          className="fade-up mx-auto flex w-full max-w-md flex-col items-center rounded-3xl border border-line bg-surface px-8 py-14 text-center shadow-sm lg:py-20"
-          role="img"
-          aria-label="campus-hub: connect, announcements, lost and found"
-        >
-          <LogoMark className="h-28 w-36 sm:h-32 sm:w-44" />
-          <p className="mt-6 text-5xl font-extrabold leading-none tracking-[-0.05em] whitespace-nowrap text-ink" aria-hidden="true">
-            campus<span className="text-[var(--logo-accent)]">-</span>
-            <span className="text-[var(--logo-hub)]">hub</span>
-          </p>
-          <p className="mt-5 font-mono text-[11px] font-medium tracking-[0.18em] text-muted uppercase" aria-hidden="true">
-            Connect · Announcements · Lost &amp; Found
-          </p>
+        <div className="fade-up mx-auto w-full max-w-md overflow-hidden rounded-3xl border border-line shadow-sm">
+          <img
+            src="/branding/campushub-animated.gif"
+            alt="campus-hub: connect, announcements, lost and found"
+            width={800}
+            height={614}
+            className="block h-auto w-full"
+          />
         </div>
       </div>
     </section>
