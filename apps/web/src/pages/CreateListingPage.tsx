@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
 import axios from "axios";
@@ -31,8 +31,6 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function CreateListingPage() {
-  const navigate = useNavigate();
-
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [error, setError] = useState("");
