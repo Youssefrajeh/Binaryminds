@@ -16,6 +16,9 @@ import { PublicProfilePage } from "./pages/PublicProfilePage";
 import { StudyGroupsPage } from "./pages/StudyGroupsPage";
 import { TermsPage } from "./pages/TermsPage";
 import { AboutPage } from "./pages/AboutPage";
+import { MarketplacePage } from "./pages/MarketplacePage";
+import { CreateListingPage } from "./pages/CreateListingPage";
+import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 
 function App() {
   return (
@@ -23,64 +26,88 @@ function App() {
       <ScrollToTop />
       <AuthProvider>
         <SocketProvider>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/verify" element={<VerifyPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile/edit"
-            element={
-              <ProtectedRoute>
-                <EditProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/messages"
-            element={
-              <ProtectedRoute>
-                <MessagesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/messages/:conversationId"
-            element={
-              <ProtectedRoute>
-                <MessagesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/u/:userId"
-            element={
-              <ProtectedRoute>
-                <PublicProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/study-groups"
-            element={
-              <ProtectedRoute>
-                <StudyGroupsPage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify" element={<VerifyPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile/edit"
+              element={
+                <ProtectedRoute>
+                  <EditProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <MessagesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages/:conversationId"
+              element={
+                <ProtectedRoute>
+                  <MessagesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/u/:userId"
+              element={
+                <ProtectedRoute>
+                  <PublicProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/study-groups"
+              element={
+                <ProtectedRoute>
+                  <StudyGroupsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/marketplace"
+              element={
+                <ProtectedRoute>
+                  <MarketplacePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/marketplace/new"
+              element={
+                <ProtectedRoute>
+                  <CreateListingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/marketplace/:id"
+              element={
+                <ProtectedRoute>
+                  <ListingDetailsPage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         </SocketProvider>
       </AuthProvider>
     </BrowserRouter>

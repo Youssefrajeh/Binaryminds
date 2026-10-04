@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
-import type { ConversationDto, ConversationTab, MessageDto } from "@campushub/shared";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import type {
+  ConversationDto,
+  ConversationTab,
+  MessageDto,
+} from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import { ConversationList } from "../components/ConversationList";
 import { ChatWindow } from "../components/ChatWindow";
@@ -10,6 +14,10 @@ import api from "../lib/api";
 
 export function MessagesPage() {
   const { conversationId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const sellerId = searchParams.get("userId");
+
   const { user } = useAuth();
   const { socket, connected, requestCount, refreshUnread } = useSocket();
   const meId = user?.id ?? "";
@@ -28,7 +36,9 @@ export function MessagesPage() {
 
   const loadList = useCallback(async () => {
     try {
-      const res = await api.get<ConversationDto[]>("/conversations", { params: { tab } });
+      const res = await api.get<ConversationDto[]>("/conversations", {
+        params: { tab },
+      });
       setConversations(res.data);
       setError("");
     } catch {
@@ -41,14 +51,39 @@ export function MessagesPage() {
   const loadActive = useCallback(async () => {
     if (!conversationId) return;
     try {
-      const res = await api.get<ConversationDto>(`/conversations/${conversationId}`);
+      const res = await api.get<ConversationDto>(
+        `/conversations/${conversationId}`,
+      );
       setActive(res.data);
       setActiveError("");
     } catch {
       setActive(null);
-      setActiveError("This conversation doesn't exist or you're no longer a member.");
+      setActiveError(
+        "This conversation doesn't exist or you're no longer a member.",
+      );
     }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (conversationId || !sellerId) return;
+
+    async function startConversation() {
+      try {
+        const response = await api.post<ConversationDto>("/conversations", {
+          recipientId: sellerId,
+        });
+
+        navigate(`/messages/${response.data.id}`, { replace: true });
+      } catch (err: any) {
+        console.error("Failed to start conversation:", err);
+        setActiveError(
+          err.response?.data?.error || "Failed to start conversation.",
+        );
+      }
+    }
+
+    startConversation();
+  }, [conversationId, sellerId, navigate]);
 
   useEffect(() => {
     setLoading(true);
@@ -76,14 +111,22 @@ export function MessagesPage() {
   useEffect(() => {
     if (!socket) return;
 
-    function onMessageNew({ message, accepted }: { message: MessageDto; accepted: boolean }) {
+    function onMessageNew({
+      message,
+      accepted,
+    }: {
+      message: MessageDto;
+      accepted: boolean;
+    }) {
       if (accepted) {
         // A request just became a normal conversation — lists and header change
         refreshAll();
         return;
       }
 
-      if (!conversationsRef.current.some((c) => c.id === message.conversationId)) {
+      if (
+        !conversationsRef.current.some((c) => c.id === message.conversationId)
+      ) {
         // New conversation or a request on the other tab
         loadList();
         return;
@@ -96,15 +139,26 @@ export function MessagesPage() {
         const fromOther = message.senderId !== meId;
         const updated: ConversationDto = {
           ...list[index],
-          lastMessage: { text: message.text, senderId: message.senderId, createdAt: message.createdAt },
-          unreadCount: fromOther && !isOpen ? list[index].unreadCount + 1 : list[index].unreadCount,
+          lastMessage: {
+            text: message.text,
+            senderId: message.senderId,
+            createdAt: message.createdAt,
+          },
+          unreadCount:
+            fromOther && !isOpen
+              ? list[index].unreadCount + 1
+              : list[index].unreadCount,
           updatedAt: message.createdAt,
         };
         return [updated, ...list.filter((_, i) => i !== index)];
       });
     }
 
-    function onConversationRemoved({ conversationId: removedId }: { conversationId: string }) {
+    function onConversationRemoved({
+      conversationId: removedId,
+    }: {
+      conversationId: string;
+    }) {
       setConversations((list) => list.filter((c) => c.id !== removedId));
       if (removedId === conversationId) loadActive();
     }
@@ -127,10 +181,12 @@ export function MessagesPage() {
 
   const handleRead = useCallback(
     (readId: string) => {
-      setConversations((list) => list.map((c) => (c.id === readId ? { ...c, unreadCount: 0 } : c)));
+      setConversations((list) =>
+        list.map((c) => (c.id === readId ? { ...c, unreadCount: 0 } : c)),
+      );
       refreshUnread();
     },
-    [refreshUnread]
+    [refreshUnread],
   );
 
   return (
@@ -153,13 +209,18 @@ export function MessagesPage() {
             />
           </aside>
 
-          <section className={`min-w-0 flex-1 ${conversationId ? "block" : "hidden sm:block"}`}>
+          <section
+            className={`min-w-0 flex-1 ${conversationId ? "block" : "hidden sm:block"}`}
+          >
             {!conversationId ? (
               <div className="flex h-full items-center justify-center p-8 text-center">
                 <div>
-                  <p className="text-sm font-medium text-ink">Select a conversation</p>
+                  <p className="text-sm font-medium text-ink">
+                    Select a conversation
+                  </p>
                   <p className="mt-1 text-sm text-muted">
-                    Or find a student and use the Message button on their profile. Study group chats live in{" "}
+                    Or find a student and use the Message button on their
+                    profile. Study group chats live in{" "}
                     <Link to="/study-groups" className="link">
                       Study groups
                     </Link>
@@ -171,7 +232,10 @@ export function MessagesPage() {
               <div className="flex h-full items-center justify-center p-8 text-center">
                 <div>
                   <p className="text-sm text-muted">{activeError}</p>
-                  <Link to="/messages" className="link mt-2 inline-block text-sm">
+                  <Link
+                    to="/messages"
+                    className="link mt-2 inline-block text-sm"
+                  >
                     Back to messages
                   </Link>
                 </div>
