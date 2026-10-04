@@ -7,9 +7,11 @@ interface AuthLayoutProps {
   subtitle?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** Shown above the card, peeking over its top edge */
+  hero?: React.ReactNode;
 }
 
-export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+export function AuthLayout({ title, subtitle, children, footer, hero }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
@@ -24,6 +26,7 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
 
       <main className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">
         <div className="fade-up w-full max-w-105">
+          {hero && <div className="relative z-10 -mb-3 flex justify-center">{hero}</div>}
           <div className="rounded-2xl border border-line bg-surface p-8 shadow-sm">
             <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
             {subtitle && <p className="mt-2 text-sm leading-relaxed text-ink-soft">{subtitle}</p>}

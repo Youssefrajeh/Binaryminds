@@ -1,8 +1,10 @@
 import { useState, type InputHTMLAttributes } from "react";
 
-type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
+type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  onVisibilityChange?: (visible: boolean) => void;
+};
 
-export function PasswordInput({ className = "field-input", ...props }: PasswordInputProps) {
+export function PasswordInput({ className = "field-input", onVisibilityChange, ...props }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
 
   return (
@@ -10,7 +12,12 @@ export function PasswordInput({ className = "field-input", ...props }: PasswordI
       <input {...props} type={visible ? "text" : "password"} className={`${className} pr-11`} />
       <button
         type="button"
-        onClick={() => setVisible((v) => !v)}
+        // Keep focus in the field so toggling doesn't count as leaving it
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          setVisible(!visible);
+          onVisibilityChange?.(!visible);
+        }}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
         className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted transition hover:text-ink focus-visible:text-ink focus-visible:outline-none"

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 import { PasswordInput } from "../components/PasswordInput";
+import { LoginMascot, type MascotMood } from "../components/LoginMascot";
 import api from "../lib/api";
 
 export function LoginPage() {
@@ -12,6 +13,13 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState<"email" | "password" | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [reaction, setReaction] = useState<"error" | "success" | null>(null);
+
+  const mood: MascotMood =
+    reaction ??
+    (focused === "password" ? (passwordVisible ? "peeking" : "hiding") : focused === "email" ? "watching" : "idle");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -20,11 +28,16 @@ export function LoginPage() {
 
     try {
       const res = await api.post("/auth/login", { email, password });
-      login(res.data.token, res.data.user);
-      navigate("/", { replace: true });
+      setReaction("success");
+      // Give the happy bounce a moment before leaving the page
+      setTimeout(() => {
+        login(res.data.token, res.data.user);
+        navigate("/", { replace: true });
+      }, 550);
     } catch (err: any) {
       setError(err.response?.data?.error || "Something went wrong");
-    } finally {
+      setReaction("error");
+      setTimeout(() => setReaction(null), 700);
       setLoading(false);
     }
   }
@@ -33,6 +46,7 @@ export function LoginPage() {
     <AuthLayout
       title="Welcome back"
       subtitle="Log in to your CampusHub account."
+      hero={<LoginMascot mood={mood} lookAt={email.length / 28} />}
       footer={
         <>
           Don't have an account?{" "}
@@ -60,6 +74,8 @@ export function LoginPage() {
             placeholder="you@fanshaweonline.ca"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onFocus={() => setFocused("email")}
+            onBlur={() => setFocused(null)}
             className="field-input"
           />
         </div>
@@ -82,6 +98,9 @@ export function LoginPage() {
             placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            onFocus={() => setFocused("password")}
+            onBlur={() => setFocused(null)}
+            onVisibilityChange={setPasswordVisible}
             className="field-input"
           />
         </div>
