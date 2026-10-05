@@ -20,8 +20,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("campushub_token");
       localStorage.removeItem("campushub_user");
+      localStorage.removeItem("campushub_last_active");
       if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
+        window.location.href = "/login?expired=true";
       }
     }
     return Promise.reject(error);

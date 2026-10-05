@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 import { PasswordInput } from "../components/PasswordInput";
@@ -8,6 +8,8 @@ import api from "../lib/api";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get("expired") === "true";
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -57,6 +59,12 @@ export function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {sessionExpired && !error && (
+          <div className="alert-info">
+            Your session expired after 10 minutes of inactivity. Please log in again.
+          </div>
+        )}
+
         {error && (
           <div className="alert-error">
             {error}

@@ -25,6 +25,7 @@ describe("api 401 handling", () => {
   it("clears the session and redirects to /login", async () => {
     localStorage.setItem("campushub_token", "abc");
     localStorage.setItem("campushub_user", "{}");
+    localStorage.setItem("campushub_last_active", "123456");
     const loc = { pathname: "/marketplace", href: "" };
     vi.stubGlobal("location", loc);
 
@@ -32,7 +33,8 @@ describe("api 401 handling", () => {
 
     expect(localStorage.getItem("campushub_token")).toBeNull();
     expect(localStorage.getItem("campushub_user")).toBeNull();
-    expect(loc.href).toBe("/login");
+    expect(localStorage.getItem("campushub_last_active")).toBeNull();
+    expect(loc.href).toBe("/login?expired=true");
   });
 
   it("keeps the session for other errors", async () => {

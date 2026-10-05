@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { ProtectedRoute } from "./ProtectedRoute";
@@ -66,10 +66,40 @@ describe("AuthContext", () => {
     await ue.click(screen.getByText("login"));
     expect(screen.getByTestId("state").textContent).toBe("in");
     expect(localStorage.getItem("campushub_token")).toBe("tok");
+    expect(localStorage.getItem("campushub_last_active")).toBeTruthy();
 
     await ue.click(screen.getByText("logout"));
     expect(screen.getByTestId("state").textContent).toBe("out");
     expect(localStorage.getItem("campushub_token")).toBeNull();
+    expect(localStorage.getItem("campushub_last_active")).toBeNull();
+  });
+
+  it("clears expired session on initial render if idle for more than 10 minutes", () => {
+    localStorage.setItem("campushub_token", "tok");
+    localStorage.setItem("campushub_user", JSON.stringify(user));
+    // 11 minutes ago
+    localStorage.setItem("campushub_last_active", (Date.now() - 11 * 60 * 1000).toString());
+
+    render(<AuthProvider><Probe /></AuthProvider>);
+    expect(screen.getByTestId("state").textContent).toBe("out");
+    expect(localStorage.getItem("campushub_token")).toBeNull();
+  });
+
+  it("automatically logs out after 10 minutes of inactivity", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const ue = userEvent.setup();
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await ue.click(screen.getByText("login"));
+    expect(screen.getByTestId("state").textContent).toBe("in");
+
+    // Advance time past 10 minutes of inactivity
+    localStorage.setItem("campushub_last_active", (Date.now() - 10 * 60 * 1000 - 1000).toString());
+
+    await act(async () => {
+      // Trigger interval check
+      await new Promise((r) => setTimeout(r, 50));
+    });
   });
 
   it("useAuth throws outside the provider", () => {

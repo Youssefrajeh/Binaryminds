@@ -31,9 +31,9 @@ function LocationProbe() {
   return <div data-testid="loc">{loc.pathname + JSON.stringify(loc.state ?? {})}</div>;
 }
 
-function renderAt(path: string, element: React.ReactNode) {
+function renderAt(path: string, element: React.ReactNode, initialEntries = [path]) {
   render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route path={path} element={element} />
         <Route path="*" element={<LocationProbe />} />
@@ -86,6 +86,11 @@ describe("LoginPage", () => {
   it("links to registration", () => {
     renderAt("/login", <LoginPage />);
     expect(screen.getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/register");
+  });
+
+  it("displays session expired alert if ?expired=true is present", () => {
+    renderAt("/login", <LoginPage />, ["/login?expired=true"]);
+    expect(screen.getByText(/session expired after 10 minutes/i)).toBeTruthy();
   });
 });
 
