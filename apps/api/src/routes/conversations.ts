@@ -18,6 +18,8 @@ conversationsRouter.use(requireAuth);
 
 const startSchema = z.object({
   recipientId: z.string().min(1, "recipientId is required"),
+  // Set when the chat is started from a listing page
+  listingId: z.string().min(1).optional(),
 });
 
 const listSchema = z.object({
@@ -42,7 +44,7 @@ conversationsRouter.post("/", async (req, res) => {
     }
 
     const userId = req.user!.userId;
-    const { recipientId } = parsed.data;
+    const { recipientId, listingId } = parsed.data;
 
     if (recipientId === userId) {
       res.status(400).json({ error: "You cannot message yourself" });
@@ -53,6 +55,14 @@ conversationsRouter.post("/", async (req, res) => {
     if (!recipient || recipient.status !== "ACTIVE") {
       res.status(404).json({ error: "User not found" });
       return;
+    }
+
+    if (listingId) {
+      const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+      if (!listing || listing.status !== "ACTIVE" || listing.sellerId !== recipientId) {
+        res.status(400).json({ error: "That listing does not belong to this seller" });
+        return;
+      }
     }
 
     const directKey = directKeyFor(userId, recipientId);
@@ -71,6 +81,7 @@ conversationsRouter.post("/", async (req, res) => {
             status: "PENDING",
             requestedById: userId,
             directKey,
+            ...(listingId ? { listingId } : {}),
             participants: { create: [{ userId }, { userId: recipientId }] },
           },
           include: conversationInclude,

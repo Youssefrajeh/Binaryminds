@@ -31,7 +31,7 @@ type Listing = {
   seller: Seller;
 };
 
-let marketplaceCache: Listing[] | null = null;
+let marketplaceCache: { listings: Listing[]; hasMore: boolean } | null = null;
 
 export function MarketplacePage() {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -39,8 +39,15 @@ export function MarketplacePage() {
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [condition, setCondition] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(marketplaceCache === null);
   const [error, setError] = useState("");
+
+  const priceInvalid =
+    minPrice !== "" && maxPrice !== "" && Number(minPrice) > Number(maxPrice);
 
   useEffect(() => {
     async function loadCategories() {
@@ -55,13 +62,31 @@ export function MarketplacePage() {
     loadCategories();
   }, []);
 
+  // A filter change goes back to the first page in the same render batch,
+  // so the load effect never fetches a stale page number with new filters.
+  function onFilter(setter: (value: string) => void) {
+    return (e: { target: { value: string } }) => {
+      setter(e.target.value);
+      setPage(1);
+    };
+  }
+
   useEffect(() => {
     const trimmedSearch = search.trim();
+    const unfiltered =
+      !trimmedSearch && !categoryId && !condition && !minPrice && !maxPrice;
 
-    // If there is no search and we already have listings cached,
-    // show them immediately without making another API request.
-    if (!trimmedSearch && !categoryId && !condition && marketplaceCache) {
-      setListings(marketplaceCache);
+    if (priceInvalid) {
+      setError("Minimum price cannot be higher than maximum price.");
+      setLoading(false);
+      return;
+    }
+
+    // If there is no filter and we already have the first page cached,
+    // show it immediately without making another API request.
+    if (unfiltered && page === 1 && marketplaceCache) {
+      setListings(marketplaceCache.listings);
+      setHasMore(marketplaceCache.hasMore);
       setLoading(false);
       setError("");
       return;
@@ -77,15 +102,21 @@ export function MarketplacePage() {
             ...(trimmedSearch ? { search: trimmedSearch } : {}),
             ...(categoryId ? { categoryId } : {}),
             ...(condition ? { condition } : {}),
+            ...(minPrice ? { minPrice } : {}),
+            ...(maxPrice ? { maxPrice } : {}),
+            ...(page > 1 ? { page } : {}),
           },
         });
 
-        setListings(response.data);
+        const more = response.headers?.["x-has-more"] === "true";
+        setHasMore(more);
+        setListings((current) =>
+          page > 1 ? [...current, ...response.data] : response.data,
+        );
 
-        // Only cache the complete marketplace list.
-        // Do not replace the cache with search results.
-        if (!trimmedSearch && !categoryId && !condition) {
-          marketplaceCache = response.data;
+        // Only cache the first page of the unfiltered marketplace.
+        if (unfiltered && page === 1) {
+          marketplaceCache = { listings: response.data, hasMore: more };
         }
       } catch (err: any) {
         console.error("Failed to load listings:", err);
@@ -98,8 +129,8 @@ export function MarketplacePage() {
       }
     }
 
-    // Search waits 300ms so we don't send a request for every keystroke.
-    if (trimmedSearch) {
+    // Typing waits 300ms so we don't send a request for every keystroke.
+    if (trimmedSearch || minPrice || maxPrice) {
       const timer = setTimeout(() => {
         loadListings();
       }, 300);
@@ -109,7 +140,7 @@ export function MarketplacePage() {
 
     // Initial Marketplace load happens immediately.
     loadListings();
-  }, [search, categoryId, condition]);
+  }, [search, categoryId, condition, minPrice, maxPrice, page, priceInvalid]);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -128,14 +159,14 @@ export function MarketplacePage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={onFilter(setSearch)}
               placeholder="Search listings..."
               className="w-full max-w-md rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
             />
 
             <select
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={onFilter(setCategoryId)}
               className="rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">All categories</option>
@@ -149,7 +180,7 @@ export function MarketplacePage() {
 
             <select
               value={condition}
-              onChange={(e) => setCondition(e.target.value)}
+              onChange={onFilter(setCondition)}
               className="rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">All conditions</option>
@@ -159,6 +190,30 @@ export function MarketplacePage() {
               <option value="FAIR">Fair</option>
               <option value="POOR">Poor</option>
             </select>
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={minPrice}
+              onChange={onFilter(setMinPrice)}
+              placeholder="Min $"
+              aria-label="Minimum price"
+              className="w-24 rounded-lg border border-line bg-surface px-3 py-3 outline-none focus:ring-2 focus:ring-primary"
+            />
+
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              value={maxPrice}
+              onChange={onFilter(setMaxPrice)}
+              placeholder="Max $"
+              aria-label="Maximum price"
+              className="w-24 rounded-lg border border-line bg-surface px-3 py-3 outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
 
           <Link
@@ -177,10 +232,10 @@ export function MarketplacePage() {
 
         {!loading && !error && listings.length === 0 && (
           <div className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">No listings yet</h2>
+            <h2 className="text-lg font-semibold text-ink">No listings found</h2>
 
             <p className="mt-2 text-sm text-ink-soft">
-              Be the first student to post something!
+              Try changing your search or filters, or post something yourself.
             </p>
 
             <Link
@@ -192,7 +247,7 @@ export function MarketplacePage() {
           </div>
         )}
 
-        {!loading && !error && listings.length > 0 && (
+        {!error && listings.length > 0 && (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {listings.map((listing) => (
               <Link
@@ -233,6 +288,18 @@ export function MarketplacePage() {
                 </div>
               </Link>
             ))}
+          </div>
+        )}
+
+        {!loading && !error && hasMore && (
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              className="btn-secondary px-6"
+            >
+              Load more
+            </button>
           </div>
         )}
       </main>

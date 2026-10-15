@@ -137,6 +137,8 @@ model Listing {
 
   @@index([status])
   @@index([categoryId])
+  @@index([priceCents])
+  @@index([createdAt(sort: Desc)])
 }
 
 model ListingImage {

@@ -18,9 +18,12 @@ const listing = {
   seller: { id: "u1" },
 };
 
-function mockApi(listings: unknown[] = [listing]) {
+function mockApi(listings: unknown[] = [listing], hasMore = false) {
   get.mockImplementation((url: string) =>
-    Promise.resolve({ data: url === "/listings/categories" ? [{ id: "c1", name: "Books", slug: "books" }] : listings }),
+    Promise.resolve({
+      data: url === "/listings/categories" ? [{ id: "c1", name: "Books", slug: "books" }] : listings,
+      headers: { "x-has-more": hasMore ? "true" : "false" },
+    }),
   );
 }
 
@@ -57,6 +60,42 @@ describe("MarketplacePage", () => {
     await waitFor(() =>
       expect(get).toHaveBeenCalledWith("/listings", { params: { condition: "GOOD" } }),
     );
+  });
+
+  it("sends min and max price to the API", async () => {
+    mockApi();
+    renderPage();
+    await screen.findByText("Calculus textbook");
+    fireEvent.change(screen.getByLabelText("Minimum price"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Maximum price"), { target: { value: "50" } });
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/listings", { params: { minPrice: "10", maxPrice: "50" } }),
+    );
+  });
+
+  it("warns when the minimum price is above the maximum", async () => {
+    mockApi();
+    renderPage();
+    await screen.findByText("Calculus textbook");
+    fireEvent.change(screen.getByLabelText("Minimum price"), { target: { value: "80" } });
+    fireEvent.change(screen.getByLabelText("Maximum price"), { target: { value: "20" } });
+    expect(await screen.findByText(/cannot be higher/)).toBeTruthy();
+  });
+
+  it("loads the next page when Load more is clicked", async () => {
+    mockApi([listing], true);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/listings", { params: { page: 2 } }),
+    );
+  });
+
+  it("hides Load more on the last page", async () => {
+    mockApi([listing], false);
+    renderPage();
+    await screen.findByText("Calculus textbook");
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
   });
 
   it("shows an error when the request fails", async () => {

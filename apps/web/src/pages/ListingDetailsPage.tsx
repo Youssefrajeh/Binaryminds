@@ -158,6 +158,7 @@ export function ListingDetailsPage() {
                 <div className="mt-6">
                   <MessageButton
                     recipientId={listing.seller.id}
+                    listingId={listing.id}
                     label="Message Seller"
                     className="btn-primary inline-flex w-full justify-center px-6 py-3"
                   />

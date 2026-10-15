@@ -13,6 +13,20 @@ const MAX_PRICE_CENTS = 2_147_483_647;
 // Photos are resized/limited to 2 MB client-side and sent as base64 data URLs
 const MAX_IMAGE_CHARS = 3 * 1024 * 1024;
 
+const DEFAULT_PAGE_SIZE = 12;
+const MAX_PAGE_SIZE = 50;
+
+// Price filters arrive in dollars (what the UI shows) and are stored in cents
+const searchSchema = z.object({
+  search: z.string().trim().optional(),
+  categoryId: z.string().trim().optional(),
+  condition: z.string().trim().optional(),
+  minPrice: z.coerce.number().min(0, "Minimum price cannot be negative").optional(),
+  maxPrice: z.coerce.number().min(0, "Maximum price cannot be negative").optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+});
+
 const createListingSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(100),
   description: z.string().trim().min(1, "Description is required").max(2000),
@@ -55,9 +69,17 @@ listingsRouter.get("/categories", async (_req, res) => {
 
 listingsRouter.get("/", async (req, res) => {
   try {
-    const search = String(req.query.search ?? "").trim();
-    const categoryId = String(req.query.categoryId ?? "").trim();
-    const condition = String(req.query.condition ?? "").trim();
+    const parsedQuery = searchSchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      res.status(400).json({ error: parsedQuery.error.issues[0]?.message ?? "Invalid search" });
+      return;
+    }
+    const { search, categoryId, condition, minPrice, maxPrice, page, limit } = parsedQuery.data;
+
+    if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+      res.status(400).json({ error: "Minimum price cannot be higher than maximum price" });
+      return;
+    }
 
     const where: Prisma.ListingWhereInput = {
       status: "ACTIVE",
@@ -88,8 +110,18 @@ listingsRouter.get("/", async (req, res) => {
       where.condition = condition;
     }
 
-    const listings = await prisma.listing.findMany({
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.priceCents = {
+        ...(minPrice !== undefined ? { gte: Math.round(minPrice * 100) } : {}),
+        ...(maxPrice !== undefined ? { lte: Math.round(maxPrice * 100) } : {}),
+      };
+    }
+
+    // Fetch one extra row to know whether another page exists without a count query
+    const rows = await prisma.listing.findMany({
       where,
+      skip: (page - 1) * limit,
+      take: limit + 1,
       include: {
         category: true,
         // The grid only shows the cover photo; the details page loads the rest
@@ -104,7 +136,8 @@ listingsRouter.get("/", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    res.json(listings);
+    res.set("X-Has-More", rows.length > limit ? "true" : "false");
+    res.json(rows.slice(0, limit));
   } catch (err) {
     console.error("Get listings error:", err);
     res.status(500).json({ error: "Internal server error" });

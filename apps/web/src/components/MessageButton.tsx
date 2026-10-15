@@ -6,6 +6,8 @@ import api from "../lib/api";
 
 interface MessageButtonProps {
   recipientId: string;
+  /** Links a new conversation to the listing it was started from */
+  listingId?: string;
   className?: string;
   label?: string;
 }
@@ -14,7 +16,7 @@ interface MessageButtonProps {
  * Opens (or starts) a DM with another student. Drop it on profiles, listings
  * and lost & found posts.
  */
-export function MessageButton({ recipientId, className = "btn-primary", label = "Message" }: MessageButtonProps) {
+export function MessageButton({ recipientId, listingId, className = "btn-primary", label = "Message" }: MessageButtonProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,7 @@ export function MessageButton({ recipientId, className = "btn-primary", label = 
     setError("");
     setLoading(true);
     try {
-      const res = await api.post<ConversationDto>("/conversations", { recipientId });
+      const res = await api.post<ConversationDto>("/conversations", { recipientId, ...(listingId ? { listingId } : {}) });
       navigate(`/messages/${res.data.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || "Could not start a conversation");

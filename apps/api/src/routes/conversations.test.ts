@@ -111,6 +111,48 @@ describe("POST /api/conversations", () => {
     expect(res.body.isRequest).toBe(true);
   });
 
+  it("links a new conversation to the listing it was started from", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: BOB, status: "ACTIVE" });
+    prisma.conversation.findUnique.mockResolvedValue(null);
+    prisma.conversation.create.mockResolvedValue(directConversation({ requestedById: ALICE, listingId: "l1" }));
+
+    const res = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", aliceAuth)
+      .send({ recipientId: BOB, listingId: "l1" });
+
+    expect(res.status).toBe(201);
+    expect(prisma.conversation.create.mock.calls[0][0].data.listingId).toBe("l1");
+  });
+
+  it("rejects a listing that is not the recipient's", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "carol", status: "ACTIVE" });
+
+    const res = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", aliceAuth)
+      .send({ recipientId: BOB, listingId: "l1" });
+
+    expect(res.status).toBe(400);
+    expect(prisma.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it("reuses the existing DM when messaging the same seller about another listing", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.listing.findUnique.mockResolvedValue({ id: "l2", sellerId: BOB, status: "ACTIVE" });
+    prisma.conversation.findUnique.mockResolvedValue(directConversation({ listingId: "l1" }));
+
+    const res = await request(app)
+      .post("/api/conversations")
+      .set("Authorization", aliceAuth)
+      .send({ recipientId: BOB, listingId: "l2" });
+
+    expect(res.status).toBe(200);
+    expect(prisma.conversation.create).not.toHaveBeenCalled();
+  });
+
   it("recovers when a concurrent request created the DM first", async () => {
     prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
     prisma.conversation.findUnique.mockResolvedValue(null);

@@ -69,6 +69,43 @@ describe("GET /api/listings", () => {
   });
 });
 
+describe("GET /api/listings price filter and pagination", () => {
+  it("converts min and max price from dollars to cents", async () => {
+    prisma.listing.findMany.mockResolvedValue([]);
+    await request(app).get("/api/listings?minPrice=10&maxPrice=45.5").set("Authorization", auth);
+    const where = prisma.listing.findMany.mock.calls.find((c) => c[0]?.where)?.[0].where;
+    expect(where.priceCents).toEqual({ gte: 1000, lte: 4550 });
+  });
+
+  it("rejects a minimum above the maximum", async () => {
+    const res = await request(app).get("/api/listings?minPrice=50&maxPrice=10").set("Authorization", auth);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects negative prices and oversized pages", async () => {
+    const a = await request(app).get("/api/listings?minPrice=-1").set("Authorization", auth);
+    const b = await request(app).get("/api/listings?limit=500").set("Authorization", auth);
+    expect(a.status).toBe(400);
+    expect(b.status).toBe(400);
+  });
+
+  it("returns one page and flags that more exist", async () => {
+    prisma.listing.findMany.mockResolvedValue(Array.from({ length: 3 }, (_, i) => ({ id: `l${i}` })));
+    const res = await request(app).get("/api/listings?page=2&limit=2").set("Authorization", auth);
+    expect(res.body).toHaveLength(2);
+    expect(res.headers["x-has-more"]).toBe("true");
+    const args = prisma.listing.findMany.mock.calls.find((c) => c[0]?.where)?.[0];
+    expect(args.skip).toBe(2);
+    expect(args.take).toBe(3);
+  });
+
+  it("flags the last page", async () => {
+    prisma.listing.findMany.mockResolvedValue([{ id: "l1" }]);
+    const res = await request(app).get("/api/listings").set("Authorization", auth);
+    expect(res.headers["x-has-more"]).toBe("false");
+  });
+});
+
 describe("GET /api/listings/:id", () => {
   it("returns 404 when missing", async () => {
     prisma.listing.findUnique.mockResolvedValue(null);
