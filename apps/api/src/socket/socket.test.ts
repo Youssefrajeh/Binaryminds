@@ -104,6 +104,11 @@ describe("handshake", () => {
     await expect(connected(client("not-a-jwt"))).rejects.toThrow("Invalid or expired token");
   });
 
+  it("rejects a valid token for a suspended account", async () => {
+    prisma.user.count.mockResolvedValueOnce(0);
+    await expect(connected(client(tokenFor("alice")))).rejects.toThrow("Account is not active");
+  });
+
   it("accepts a valid token", async () => {
     await expect(connected(client(tokenFor("alice")))).resolves.toBeUndefined();
   });

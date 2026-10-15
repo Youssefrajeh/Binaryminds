@@ -172,6 +172,29 @@ describe("membership check", () => {
 });
 
 describe("GET /api/conversations/:id/messages", () => {
+  it("keeps messages sharing the boundary timestamp on one page", async () => {
+    prisma.participant.findUnique.mockResolvedValue(membershipRow());
+    const msg = (id: string, t: string) => ({
+      id,
+      conversationId: "c1",
+      senderId: BOB,
+      text: id,
+      attachments: [],
+      clientId: null,
+      createdAt: new Date(t),
+    });
+    const tie = "2026-09-03T10:00:01Z";
+    prisma.message.findMany
+      .mockResolvedValueOnce([msg("m4", "2026-09-03T10:00:02Z"), msg("m3", tie), msg("m2", tie)])
+      .mockResolvedValueOnce([msg("m3", tie), msg("m2", tie)]);
+    prisma.message.findFirst.mockResolvedValueOnce({ id: "m1" });
+
+    const res = await request(app).get("/api/conversations/c1/messages?limit=2").set("Authorization", aliceAuth);
+
+    expect(res.body.messages.map((m: { id: string }) => m.id)).toEqual(["m2", "m3", "m4"]);
+    expect(res.body.hasMore).toBe(true);
+  });
+
   it("pages with a createdAt cursor, oldest-first within the page", async () => {
     prisma.participant.findUnique.mockResolvedValue(membershipRow());
     const newest = new Date("2026-09-03T10:00:03Z");

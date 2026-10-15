@@ -4,6 +4,41 @@ interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Plain-text alternative; derived from the HTML when omitted */
+  text?: string;
+}
+
+/**
+ * HTML-only mail scores worse with spam filters, so every message also carries
+ * a plain-text part.
+ */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(head|style|script)[\s\S]*?<\/>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>|<br\s*\/?>/gi, "
+")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ 	]+/g, " ")
+    .replace(/ *
+ */g, "
+")
+    .replace(/
+{3,}/g, "
+
+")
+    .trim();
+}
+
+/** Where replies go; defaults to the sending address */
+function replyToAddress(fallback: string | undefined): string | undefined {
+  return process.env.EMAIL_REPLY_TO || fallback;
 }
 
 /* ------------------------------------------------------------------ */
@@ -31,7 +66,7 @@ function createTransporter() {
 /*  HTTPS email API (Brevo) — works on hosts that block SMTP           */
 /* ------------------------------------------------------------------ */
 
-async function sendViaBrevo(apiKey: string, { to, subject, html }: SendEmailInput): Promise<void> {
+async function sendViaBrevo(apiKey: string, { to, subject, html, text }: SendEmailInput): Promise<void> {
   const fromName = process.env.EMAIL_FROM_NAME ?? "CampusHub";
   const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? process.env.SMTP_USER;
   if (!fromAddress) throw new Error("EMAIL_FROM_ADDRESS (or SMTP_USER) must be set to send via Brevo");
@@ -44,6 +79,8 @@ async function sendViaBrevo(apiKey: string, { to, subject, html }: SendEmailInpu
       to: [{ email: to }],
       subject,
       htmlContent: html,
+      textContent: text ?? htmlToText(html),
+      ...(replyToAddress(fromAddress) ? { replyTo: { email: replyToAddress(fromAddress) } } : {}),
     }),
     signal: AbortSignal.timeout(15_000),
   });
@@ -80,7 +117,7 @@ function getGmailApiConfig(): GmailApiConfig | null {
   return { clientId, clientSecret, refreshToken, user };
 }
 
-async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html }: SendEmailInput): Promise<void> {
+async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html, text }: SendEmailInput): Promise<void> {
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -103,8 +140,10 @@ async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html }: Se
   const { message } = await composer.sendMail({
     from: `"${fromName}" <${config.user}>`,
     to,
+    replyTo: replyToAddress(config.user),
     subject,
     html,
+    text: text ?? htmlToText(html),
   });
 
   const sendRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
@@ -122,16 +161,16 @@ async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html }: Se
 /*  Public API (same signature as before)                              */
 /* ------------------------------------------------------------------ */
 
-export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<void> {
+export async function sendEmail({ to, subject, html, text }: SendEmailInput): Promise<void> {
   const gmailApi = getGmailApiConfig();
   if (gmailApi) {
-    await sendViaGmailApi(gmailApi, { to, subject, html });
+    await sendViaGmailApi(gmailApi, { to, subject, html, text });
     return;
   }
 
   const brevoKey = process.env.BREVO_API_KEY;
   if (brevoKey) {
-    await sendViaBrevo(brevoKey, { to, subject, html });
+    await sendViaBrevo(brevoKey, { to, subject, html, text });
     return;
   }
 
@@ -149,8 +188,10 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
   await transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     to,
+    replyTo: replyToAddress(fromAddress),
     subject,
     html,
+    text: text ?? htmlToText(html),
   });
 }
 

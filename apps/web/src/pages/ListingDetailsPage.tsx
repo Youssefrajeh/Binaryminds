@@ -47,6 +47,10 @@ export function ListingDetailsPage() {
 
   useEffect(() => {
     async function loadListing() {
+      setLoading(true);
+      setError("");
+      setListing(null);
+
       if (!id) {
         setError("Listing not found.");
         setLoading(false);

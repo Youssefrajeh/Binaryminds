@@ -4,6 +4,7 @@ import { prisma } from "./prisma.js";
 import { findMembership } from "./conversations.js";
 
 export const MAX_MESSAGE_LENGTH = 2000;
+export const MAX_PENDING_MESSAGES = 3;
 
 export const sendMessageSchema = z.object({
   conversationId: z.string().min(1),
@@ -65,6 +66,15 @@ export async function sendMessage(senderId: string, input: unknown): Promise<Sen
   }
 
   const { conversation: before } = membership;
+
+  // Until the recipient accepts, a requester may only send a few opening messages
+  if (before.type === "DIRECT" && before.status === "PENDING" && before.requestedById === senderId) {
+    const sent = await prisma.message.count({ where: { conversationId, senderId } });
+    if (sent >= MAX_PENDING_MESSAGES) {
+      throw new MessageError("Wait for them to accept your request before sending more messages");
+    }
+  }
+
   // Replying to a request accepts it
   const accepted = before.type === "DIRECT" && before.status === "PENDING" && before.requestedById !== senderId;
 

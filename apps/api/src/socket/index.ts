@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
+import { prisma } from "../lib/prisma.js";
 import { verifyToken } from "../lib/jwt.js";
 import { corsOptions } from "../lib/cors.js";
 import { findMembership, toMessageDto } from "../lib/conversations.js";
@@ -24,18 +25,34 @@ export function createSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, { cors: corsOptions() });
 
   /* ---- Handshake: same JWT as the REST API ---- */
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (typeof token !== "string" || !token) {
       next(new Error("Authentication required"));
       return;
     }
+
+    let userId: string;
     try {
-      socket.data.userId = verifyToken(token).userId;
-      next();
+      userId = verifyToken(token).userId;
     } catch {
       next(new Error("Invalid or expired token"));
+      return;
     }
+
+    try {
+      // Suspended or deleted accounts keep valid tokens, so check the account too
+      if ((await prisma.user.count({ where: { id: userId, status: "ACTIVE" } })) === 0) {
+        next(new Error("Account is not active"));
+        return;
+      }
+    } catch {
+      next(new Error("Authentication failed"));
+      return;
+    }
+
+    socket.data.userId = userId;
+    next();
   });
 
   io.on("connection", (socket) => {

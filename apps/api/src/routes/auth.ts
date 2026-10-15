@@ -1,10 +1,11 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { signToken } from "../lib/jwt.js";
 import { generateOtp } from "../lib/otp.js";
 import { sendEmail, isAllowedDomain } from "../lib/email.js";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { passwordSchema } from "../lib/password.js";
 import { verificationEmailHtml, passwordResetEmailHtml } from "../lib/email-templates.js";
 
@@ -12,6 +13,30 @@ export const authRouter = Router();
 
 const BCRYPT_ROUNDS = 12;
 const OTP_EXPIRY_MINUTES = 15;
+
+/* ------------------------------------------------------------------ */
+/*  Brute-force protection                                             */
+/* ------------------------------------------------------------------ */
+
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_ATTEMPTS = 10;
+
+/**
+ * Limits attempts per key (read from the request body's email). 6-digit codes
+ * stay valid for 15 minutes, so guessing has to be capped per email address.
+ */
+function attemptLimit(scope: string, includeIp: boolean) {
+  const limiter = createRateLimiter(MAX_ATTEMPTS, ATTEMPT_WINDOW_MS);
+  return (req: Request, res: Response, next: NextFunction) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const key = `${scope}:${email}${includeIp ? `:${req.ip}` : ""}`;
+    if (!limiter.tryConsume(key)) {
+      res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
+      return;
+    }
+    next();
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Validation schemas                                                 */
@@ -154,7 +179,7 @@ authRouter.post("/register", async (req, res) => {
 /*  POST /auth/verify                                                  */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/verify", async (req, res) => {
+authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
   try {
     const parsed = verifySchema.safeParse(req.body);
     if (!parsed.success) {
@@ -218,7 +243,7 @@ authRouter.post("/verify", async (req, res) => {
 /*  POST /auth/login                                                   */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", attemptLimit("login", true), async (req, res) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -278,7 +303,7 @@ authRouter.post("/logout", (_req, res) => {
 /*  POST /auth/forgot-password                                         */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/forgot-password", async (req, res) => {
+authRouter.post("/forgot-password", attemptLimit("forgot", true), async (req, res) => {
   try {
     const parsed = forgotSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -318,7 +343,7 @@ authRouter.post("/forgot-password", async (req, res) => {
 /*  POST /auth/reset-password                                          */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/reset-password", async (req, res) => {
+authRouter.post("/reset-password", attemptLimit("reset", false), async (req, res) => {
   try {
     const parsed = resetSchema.safeParse(req.body);
     if (!parsed.success) {

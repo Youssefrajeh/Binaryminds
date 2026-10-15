@@ -14,13 +14,15 @@ const prisma = prismaClient as unknown as PrismaMock;
 const app = createApp();
 const auth = `Bearer ${signToken({ userId: "alice", role: "STUDENT" })}`;
 
+const IMG = "data:image/png;base64,iVBORw0KGgo=";
+
 const validBody = {
   title: "Calculus textbook",
   description: "Barely used",
   priceCents: 4500,
   categoryId: "cat1",
   condition: "Good",
-  images: [{ url: "a.jpg" }, { url: "b.jpg" }],
+  images: [{ url: IMG }, { url: IMG }],
 };
 
 beforeEach(() => {
@@ -93,7 +95,7 @@ describe("POST /api/listings", () => {
     ["empty title", { title: "" }],
     ["negative price", { priceCents: -1 }],
     ["fractional price", { priceCents: 1.5 }],
-    ["too many images", { images: Array.from({ length: 6 }, (_, i) => ({ url: `${i}.jpg` })) }],
+    ["too many images", { images: Array.from({ length: 6 }, () => ({ url: IMG })) }],
   ])("rejects %s", async (_name, patch) => {
     const res = await request(app)
       .post("/api/listings")
@@ -122,12 +124,38 @@ describe("POST /api/listings", () => {
           priceCents: 4500,
           images: {
             create: [
-              { url: "a.jpg", sortOrder: 0 },
-              { url: "b.jpg", sortOrder: 1 },
+              { url: IMG, sortOrder: 0 },
+              { url: IMG, sortOrder: 1 },
             ],
           },
         }),
       }),
     );
+  });
+});
+
+describe("listing validation", () => {
+  it("rejects prices beyond the 32-bit database limit", async () => {
+    const res = await request(app)
+      .post("/api/listings")
+      .set("Authorization", auth)
+      .send({ ...validBody, priceCents: 2_147_483_648 });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects photos that are not image data URLs", async () => {
+    const res = await request(app)
+      .post("/api/listings")
+      .set("Authorization", auth)
+      .send({ ...validBody, images: [{ url: "javascript:alert(1)" }] });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("root routing", () => {
+  it("does not expose API routes outside /api (they would shadow SPA pages)", async () => {
+    const res = await request(app).get("/study-groups");
+    // Served by the SPA fallback (200) or missing (404) -- never the API's 401
+    expect(res.status).not.toBe(401);
   });
 });

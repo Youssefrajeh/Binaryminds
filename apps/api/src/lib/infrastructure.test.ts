@@ -5,10 +5,12 @@ import { corsOptions } from "./cors.js";
 import { signToken, verifyToken } from "./jwt.js";
 import { generateOtp } from "./otp.js";
 import { passwordSchema } from "./password.js";
-import { isAllowedDomain, sendEmail } from "./email.js";
+import { htmlToText, isAllowedDomain, sendEmail } from "./email.js";
 import { passwordResetEmailHtml, verificationEmailHtml } from "./email-templates.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { createApp } from "../app.js";
+import { prisma as prismaClient } from "./prisma.js";
+import type { PrismaMock } from "../test/prismaMock.js";
 
 vi.mock("./prisma.js", async () => {
   const { createPrismaMock } = await import("../test/prismaMock.js");
@@ -82,6 +84,14 @@ describe("isAllowedDomain", () => {
   });
 });
 
+describe("htmlToText", () => {
+  it("strips markup, styles and comments but keeps the code and line breaks", () => {
+    const text = htmlToText(verificationEmailHtml("123456", 10));
+    expect(text).toContain("123456");
+    expect(text).not.toMatch(/<|>|font-family/);
+  });
+});
+
 describe("sendEmail", () => {
   const input = { to: "a@fanshaweonline.ca", subject: "Hi", html: "<p>x</p>" };
 
@@ -109,6 +119,8 @@ describe("sendEmail", () => {
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toMatchObject({ to: [{ email: input.to }], subject: "Hi", htmlContent: input.html });
+    expect(body.textContent).toBe("x");
+    expect(body.replyTo).toBeDefined();
   });
 
   it("surfaces Brevo failures", async () => {
@@ -170,6 +182,14 @@ describe("requireAuth middleware", () => {
     const res = await request(app).get("/p").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ userId: "u1", role: "STUDENT" });
+  });
+
+  it("rejects a valid token whose account is suspended or deleted", async () => {
+    const prisma = prismaClient as unknown as PrismaMock;
+    prisma.user.count.mockResolvedValueOnce(0);
+    const token = signToken({ userId: "u1", role: "STUDENT" });
+    const res = await request(app).get("/p").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(401);
   });
 });
 

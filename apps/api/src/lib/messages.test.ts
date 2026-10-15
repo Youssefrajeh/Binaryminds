@@ -57,6 +57,13 @@ describe("sendMessage", () => {
     expect(prisma.message.create).not.toHaveBeenCalled();
   });
 
+  it("caps opening messages while a request is still pending", async () => {
+    prisma.participant.findUnique.mockResolvedValue({ ...membership(), id: "p-alice", userId: "alice" });
+    prisma.message.count.mockResolvedValueOnce(3);
+    await expect(sendMessage("alice", { conversationId: "c1", text: "hello?" })).rejects.toThrow("accept your request");
+    expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
   it("rejects messages in a blocked conversation", async () => {
     prisma.participant.findMany.mockResolvedValue([
       { id: "p-alice", userId: "alice", blockedAt: now },

@@ -205,7 +205,7 @@ conversationsRouter.get("/:id/messages", async (req, res) => {
     const { before, limit } = parsed.data;
 
     // Cursor pagination: newest first, one extra row tells us if there is more
-    const rows = await prisma.message.findMany({
+    let rows = await prisma.message.findMany({
       where: {
         conversationId: req.params.id,
         ...(before ? { createdAt: { lt: new Date(before) } } : {}),
@@ -214,8 +214,29 @@ conversationsRouter.get("/:id/messages", async (req, res) => {
       take: limit + 1,
     });
 
-    const hasMore = rows.length > limit;
-    const page = rows.slice(0, limit).reverse();
+    let hasMore = rows.length > limit;
+    const extra = rows[limit];
+    rows = rows.slice(0, limit);
+
+    // The cursor is a timestamp, so messages sharing the oldest timestamp must
+    // all land on this page or the next request (createdAt < cursor) would skip them
+    const boundary = rows[rows.length - 1]?.createdAt;
+    if (hasMore && extra && boundary && extra.createdAt.getTime() === boundary.getTime()) {
+      const ties = await prisma.message.findMany({
+        where: { conversationId: req.params.id, createdAt: boundary },
+        orderBy: { createdAt: "desc" },
+      });
+      if (ties.length > 1) {
+        rows = [...rows.filter((m) => m.createdAt.getTime() !== boundary.getTime()), ...ties];
+        hasMore =
+          (await prisma.message.findFirst({
+            where: { conversationId: req.params.id, createdAt: { lt: boundary } },
+            select: { id: true },
+          })) !== null;
+      }
+    }
+
+    const page = rows.reverse();
 
     res.json({
       messages: page.map(toMessageDto),

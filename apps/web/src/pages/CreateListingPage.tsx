@@ -223,8 +223,6 @@ export function CreateListingPage() {
         </p>
 
         <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
-          {error && <div className="alert-error mb-6">{error}</div>}
-
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && <div className="alert-error">{error}</div>}
 

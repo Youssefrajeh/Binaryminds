@@ -50,3 +50,14 @@ describe("POST /api/auth/register — Terms and Conditions", () => {
     expect(sendEmail).toHaveBeenCalledOnce();
   });
 });
+
+describe("brute-force protection", () => {
+  it("returns 429 after too many verification attempts for one email", async () => {
+    let last = 0;
+    for (let i = 0; i < 12; i++) {
+      const res = await request(app).post("/api/auth/verify").send({ email: "brute@fanshaweonline.ca", otp: "000000" });
+      last = res.status;
+    }
+    expect(last).toBe(429);
+  });
+});
