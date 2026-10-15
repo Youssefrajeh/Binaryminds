@@ -4,6 +4,8 @@ import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 export function VerifyPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -13,10 +15,37 @@ export function VerifyPage() {
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SECONDS);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const lastSubmittedOtp = useRef<string>("");
   const isSubmitting = useRef(false);
+
+  /* Tick the resend cooldown down once a second */
+  const cooling = cooldown > 0;
+  useEffect(() => {
+    if (!cooling) return;
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooling]);
+
+  async function handleResend() {
+    if (cooldown > 0 || resending) return;
+    setError("");
+    setResendMessage("");
+    setResending(true);
+    try {
+      await api.post("/auth/resend-verification", { email });
+      setResendMessage("A new code is on its way. It can take a few minutes to arrive.");
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Could not resend the code");
+    } finally {
+      setResending(false);
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    }
+  }
 
   /* Auto-submit when all 6 digits are filled */
   const submitOtp = useCallback(async (otp: string) => {
@@ -102,7 +131,7 @@ export function VerifyPage() {
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={`We sent a 6-digit code to ${email}. Check your inbox (and spam folder).`}
+      subtitle={`We sent a 6-digit code to ${email}. Fanshawe email can take a few minutes to arrive — check Junk too.`}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
@@ -136,12 +165,26 @@ export function VerifyPage() {
           {loading ? "Verifying…" : "Verify"}
         </button>
 
-        <p className="text-center text-xs text-muted">
-          Didn't receive the code? Check your spam folder, or{" "}
-          <Link to="/register" className="link">
-            try again
-          </Link>
-        </p>
+        <div className="text-center text-xs text-muted">
+          {resendMessage && (
+            <p className="mb-2" role="status">
+              {resendMessage}
+            </p>
+          )}
+          <span>Didn't receive the code? </span>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={cooldown > 0 || resending}
+            className="link disabled:cursor-not-allowed disabled:opacity-60 disabled:no-underline"
+          >
+            {resending
+              ? "Sending…"
+              : cooldown > 0
+                ? `Resend code in ${cooldown}s`
+                : "Resend code"}
+          </button>
+        </div>
       </form>
     </AuthLayout>
   );

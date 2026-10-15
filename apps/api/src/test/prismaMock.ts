@@ -7,7 +7,7 @@ import { vi } from "vitest";
 export function createPrismaMock() {
   return {
     user: { count: vi.fn().mockResolvedValue(1), findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
-    pendingRegistration: { findUnique: vi.fn(), upsert: vi.fn(), delete: vi.fn() },
+    pendingRegistration: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn(), delete: vi.fn() },
     profile: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     category: { findMany: vi.fn(), findUnique: vi.fn() },
     listing: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn() },

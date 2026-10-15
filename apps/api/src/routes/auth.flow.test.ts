@@ -111,6 +111,75 @@ describe("POST /api/auth/register", () => {
   });
 });
 
+describe("POST /api/auth/resend-verification", () => {
+  const generic = "If a sign-up is pending for that email, a new code has been sent.";
+  const pendingRow = () => ({
+    email,
+    passwordHash: "ph",
+    otpHash,
+    otpExpiresAt: past(),
+    termsAcceptedAt: new Date(),
+  });
+
+  it("sends a new code and stores its hash and expiry for a pending sign-up", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue(pendingRow());
+    prisma.pendingRegistration.update.mockResolvedValue({});
+    const res = await request(app).post("/api/auth/resend-verification").send({ email });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe(generic);
+
+    const mail = vi.mocked(sendEmail).mock.calls[0][0];
+    expect(mail.to).toBe(email);
+    expect(mail.subject).toBe("CampusHub — Your new verification code");
+
+    const { where, data } = prisma.pendingRegistration.update.mock.calls[0][0];
+    expect(where).toEqual({ email });
+    expect(await bcrypt.compare(otpFrom(mail.html), data.otpHash)).toBe(true);
+    expect(data.otpExpiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("trims and lowercases the email", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue(pendingRow());
+    prisma.pendingRegistration.update.mockResolvedValue({});
+    await request(app).post("/api/auth/resend-verification").send({ email: `  ${email.toUpperCase()} ` });
+    expect(prisma.pendingRegistration.findUnique).toHaveBeenCalledWith({ where: { email } });
+  });
+
+  it("gives the same response and sends nothing when no sign-up is pending", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue(null);
+    const res = await request(app).post("/api/auth/resend-verification").send({ email });
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe(generic);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(prisma.pendingRegistration.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid email", async () => {
+    const res = await request(app).post("/api/auth/resend-verification").send({ email: "nope" });
+    expect(res.status).toBe(400);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps the existing code valid when the email fails", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue(pendingRow());
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("brevo down"));
+    const res = await request(app).post("/api/auth/resend-verification").send({ email });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBeTruthy();
+    expect(prisma.pendingRegistration.update).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits repeated requests for the same email", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue(null);
+    const other = "limit_test@fanshaweonline.ca";
+    let last = 200;
+    for (let i = 0; i < 11; i++) {
+      last = (await request(app).post("/api/auth/resend-verification").send({ email: other })).status;
+    }
+    expect(last).toBe(429);
+  });
+});
+
 describe("POST /api/auth/verify", () => {
   const pending = () => ({
     email,

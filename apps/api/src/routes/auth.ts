@@ -61,6 +61,10 @@ const verifySchema = z.object({
   otp: z.string().length(6),
 });
 
+const resendSchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
 const forgotSchema = z.object({
   email: z.string().email(),
 });
@@ -185,6 +189,51 @@ authRouter.post("/register", async (req, res) => {
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/*  POST /auth/resend-verification                                     */
+/* ------------------------------------------------------------------ */
+
+authRouter.post("/resend-verification", attemptLimit("resend", true), async (req, res) => {
+  try {
+    const parsed = resendSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: parsed.error.issues[0]?.message ?? "Validation failed",
+        details: parsed.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    const { email } = parsed.data;
+
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email } });
+
+    if (pending) {
+      const otp = generateOtp();
+      const otpHash = await bcrypt.hash(otp, OTP_BCRYPT_ROUNDS);
+      const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+      // Send first: if the email fails, the code the student already has stays valid
+      await sendEmail({
+        to: email,
+        subject: "CampusHub — Your new verification code",
+        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
+      });
+
+      await prisma.pendingRegistration.update({
+        where: { email },
+        data: { otpHash, otpExpiresAt },
+      });
+    }
+
+    // Same answer either way so this can't be used to probe which emails are signing up
+    res.json({ message: "If a sign-up is pending for that email, a new code has been sent." });
+  } catch (err) {
+    console.error("Resend verification error:", err);
+    res.status(500).json({ error: "Could not resend the code. Please try again." });
   }
 });
 
