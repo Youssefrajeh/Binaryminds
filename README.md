@@ -73,7 +73,7 @@ JWT_SECRET="any-random-secret-string-here"
 > click **Connect** on your cluster, choose **Drivers**, and copy the connection string.
 > Replace `<password>` with your database user's password.
 
-The other variables in `.env` (SMTP, Gmail OAuth, Brevo) are for email sending.
+`BREVO_API_KEY` and `EMAIL_FROM_ADDRESS` in `.env` are for email sending via Brevo.
 The app will still start without them, but email verification won't work until they're configured.
 
 ### Step 5 — Generate the Prisma client

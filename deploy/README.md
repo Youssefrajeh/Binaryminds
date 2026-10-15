@@ -26,8 +26,8 @@ Network Access > add the VM's public IP (or 0.0.0.0/0 for testing).
     ALLOWED_EMAIL_DOMAIN="fanshaweonline.ca"
     BREVO_API_KEY="..."
     EMAIL_FROM_ADDRESS="..."
-    # plus SMTP_*/GMAIL_* if you use them (copy the values from Render)
     CLIENT_URL="https://YOUR_DOMAIN"
+    APP_URL="https://YOUR_DOMAIN"
 
 ## 6. Run setup
     bash deploy/setup.sh

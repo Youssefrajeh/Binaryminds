@@ -4,8 +4,32 @@
 /* ------------------------------------------------------------------ */
 
 const BRAND = "#b3122e";
-const BRAND_DARK = "#8f0e24";
 const BRAND_SOFT = "#fbeaed";
+
+/**
+ * Public origin that serves /email-logo.png. Email clients block SVG and data
+ * URIs, so the logo has to be a PNG at an absolute https URL.
+ */
+function logoUrl(): string | null {
+  const base = (process.env.APP_URL || (process.env.CLIENT_URL ?? "").split(",")[0] || "").trim().replace(/\/$/, "");
+  return base ? `${base}/email-logo.png` : null;
+}
+
+/** Logo image plus wordmark; falls back to the wordmark alone when no public URL is configured. */
+function logoBlock(): string {
+  const url = logoUrl();
+  const img = url
+    ? `<td style="padding-right:12px;vertical-align:middle;"><img src="${url}" width="48" height="36" alt="CampusHub" style="display:block;border:0;outline:none;" /></td>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  ${img}
+                  <td style="vertical-align:middle;">
+                    <span style="font-size:28px;font-weight:800;color:#1c1917;letter-spacing:-1.5px;">campus<span style="color:#f2a33a;">-</span><span style="color:${BRAND};">hub</span></span>
+                  </td>
+                </tr>
+              </table>`;
+}
 
 /**
  * Shared outer shell used by every email.
@@ -40,19 +64,9 @@ function layout(content: string): string {
 
           <!-- Header banner -->
           <tr>
-            <td style="background:linear-gradient(135deg,${BRAND} 0%,${BRAND_DARK} 100%);padding:32px 40px;text-align:center;">
-              <!-- Logo mark -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
-                <tr>
-                  <td style="width:42px;height:42px;background:rgba(255,255,255,0.18);border-radius:12px;text-align:center;vertical-align:middle;font-size:22px;color:#ffffff;font-weight:bold;">
-                    ✦
-                  </td>
-                  <td style="padding-left:14px;">
-                    <span style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Campus</span><span style="font-size:24px;font-weight:700;color:rgba(255,255,255,0.85);letter-spacing:-0.5px;">Hub</span>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:10px 0 0;font-size:12px;color:rgba(255,255,255,0.7);letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">
+            <td style="background-color:#ffffff;padding:28px 40px 22px;text-align:center;border-bottom:4px solid ${BRAND};">
+              ${logoBlock()}
+              <p style="margin:12px 0 0;font-size:12px;color:#78716c;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;">
                 Fanshawe College Student Portal
               </p>
             </td>

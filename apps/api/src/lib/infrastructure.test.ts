@@ -96,7 +96,7 @@ describe("sendEmail", () => {
   const input = { to: "a@fanshaweonline.ca", subject: "Hi", html: "<p>x</p>" };
 
   beforeEach(() => {
-    for (const k of ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "SMTP_USER", "SMTP_PASS", "BREVO_API_KEY"]) {
+    for (const k of ["BREVO_API_KEY"]) {
       delete process.env[k];
     }
   });
@@ -128,39 +128,6 @@ describe("sendEmail", () => {
     process.env.EMAIL_FROM_ADDRESS = "noreply@x.ca";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => "bad key" }));
     await expect(sendEmail(input)).rejects.toThrow("Brevo send failed (401)");
-  });
-
-  it("prefers the Gmail API and surfaces token failures", async () => {
-    Object.assign(process.env, {
-      GMAIL_CLIENT_ID: "i",
-      GMAIL_CLIENT_SECRET: "s",
-      GMAIL_REFRESH_TOKEN: "r",
-      SMTP_USER: "me@gmail.com",
-      BREVO_API_KEY: "ignored",
-    });
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400, text: async () => "invalid_grant" });
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(sendEmail(input)).rejects.toThrow("Gmail token refresh failed (400)");
-    expect(fetchMock.mock.calls[0][0]).toBe("https://oauth2.googleapis.com/token");
-  });
-
-  it("reuses the Gmail access token across emails", async () => {
-    Object.assign(process.env, {
-      GMAIL_CLIENT_ID: "i",
-      GMAIL_CLIENT_SECRET: "s",
-      GMAIL_REFRESH_TOKEN: "r",
-      SMTP_USER: "me@gmail.com",
-    });
-    const fetchMock = vi.fn(async (url: string) =>
-      url.includes("oauth2")
-        ? { ok: true, json: async () => ({ access_token: "tok", expires_in: 3600 }) }
-        : { ok: true },
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    await sendEmail(input);
-    await sendEmail(input);
-    const tokenCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("oauth2"));
-    expect(tokenCalls).toHaveLength(1);
   });
 });
 
