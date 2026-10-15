@@ -111,7 +111,14 @@ function getGmailApiConfig(): GmailApiConfig | null {
   return { clientId, clientSecret, refreshToken, user };
 }
 
-async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html, text }: SendEmailInput): Promise<void> {
+// Google access tokens last about an hour; reuse one instead of refreshing per email
+let cachedGmailToken: { token: string; expiresAt: number } | null = null;
+
+async function getGmailAccessToken(config: GmailApiConfig): Promise<string> {
+  if (cachedGmailToken && cachedGmailToken.expiresAt > Date.now() + 60_000) {
+    return cachedGmailToken.token;
+  }
+
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -126,7 +133,13 @@ async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html, text
   if (!tokenRes.ok) {
     throw new Error(`Gmail token refresh failed (${tokenRes.status}): ${await tokenRes.text()}`);
   }
-  const { access_token } = (await tokenRes.json()) as { access_token: string };
+  const { access_token, expires_in } = (await tokenRes.json()) as { access_token: string; expires_in?: number };
+  cachedGmailToken = { token: access_token, expiresAt: Date.now() + (expires_in ?? 3600) * 1000 };
+  return access_token;
+}
+
+async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html, text }: SendEmailInput): Promise<void> {
+  const access_token = await getGmailAccessToken(config);
 
   // Build the MIME message with nodemailer, then hand it to the Gmail API
   const fromName = process.env.EMAIL_FROM_NAME ?? "CampusHub";
@@ -147,6 +160,8 @@ async function sendViaGmailApi(config: GmailApiConfig, { to, subject, html, text
     signal: AbortSignal.timeout(15_000),
   });
   if (!sendRes.ok) {
+    // A rejected token must not be reused for the next email
+    if (sendRes.status === 401) cachedGmailToken = null;
     throw new Error(`Gmail API send failed (${sendRes.status}): ${await sendRes.text()}`);
   }
 }

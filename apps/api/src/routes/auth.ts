@@ -12,6 +12,9 @@ import { verificationEmailHtml, passwordResetEmailHtml } from "../lib/email-temp
 export const authRouter = Router();
 
 const BCRYPT_ROUNDS = 12;
+// One-time codes expire in minutes and are attempt-limited, so a cheap hash is
+// enough; 12 rounds would add seconds on a shared free-tier CPU.
+const OTP_BCRYPT_ROUNDS = 8;
 const OTP_EXPIRY_MINUTES = 15;
 
 /* ------------------------------------------------------------------ */
@@ -101,7 +104,7 @@ function userToDto(user: {
 
 async function generateAndStoreOtp(userId: string): Promise<string> {
   const otp = generateOtp();
-  const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+  const otpHash = await bcrypt.hash(otp, OTP_BCRYPT_ROUNDS);
   const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
   await prisma.user.update({
@@ -143,30 +146,40 @@ authRouter.post("/register", async (req, res) => {
       await prisma.user.delete({ where: { id: existing.id } });
     }
 
-    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const otp = generateOtp();
-    const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+
+    // Start sending right away: the email only needs the plain code, so it goes
+    // out while the hashes are computed and the pending record is saved.
+    const emailSent = sendEmail({
+      to: email,
+      subject: "CampusHub — Verify your email",
+      html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
+    });
+
     const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
     // Record when the Terms were accepted; carried onto the user at verification
     const termsAcceptedAt = new Date();
 
-    await prisma.pendingRegistration.upsert({
-      where: { email },
-      create: { email, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt },
-      update: { passwordHash, otpHash, otpExpiresAt, termsAcceptedAt, createdAt: new Date() },
-    });
-
-    try {
-      await sendEmail({
-        to: email,
-        subject: "CampusHub — Verify your email",
-        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
+    const saved = (async () => {
+      const [passwordHash, otpHash] = await Promise.all([
+        bcrypt.hash(password, BCRYPT_ROUNDS),
+        bcrypt.hash(otp, OTP_BCRYPT_ROUNDS),
+      ]);
+      await prisma.pendingRegistration.upsert({
+        where: { email },
+        create: { email, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt },
+        update: { passwordHash, otpHash, otpExpiresAt, termsAcceptedAt, createdAt: new Date() },
       });
-    } catch (err) {
+    })();
+
+    const [saveResult, emailResult] = await Promise.allSettled([saved, emailSent]);
+    if (emailResult.status === "rejected") {
+      // A code nobody received is useless; drop the pending record
       await prisma.pendingRegistration.delete({ where: { email } }).catch(() => {});
-      throw err;
+      throw emailResult.reason;
     }
+    if (saveResult.status === "rejected") throw saveResult.reason;
 
     res.status(201).json({ message: "Check your email for the verification code." });
   } catch (err) {
