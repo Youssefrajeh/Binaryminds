@@ -123,7 +123,7 @@ async function generateAndStoreOtp(userId: string): Promise<string> {
 /*  POST /auth/register                                                */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/register", async (req, res) => {
+authRouter.post("/register", attemptLimit("register", true), async (req, res) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {

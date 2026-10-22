@@ -14,6 +14,10 @@ import { listingsRouter } from "./routes/listings.js";
 export function createApp() {
   const app = express();
 
+  // Render and nginx sit in front of the API; trust one hop so req.ip is the
+  // client's address and per-IP rate limits work
+  app.set("trust proxy", 1);
+
   app.use(cors(corsOptions()));
   // Large enough for listing photos (up to 5 x 2 MB) sent as data URLs
   app.use(express.json({ limit: "16mb" }));

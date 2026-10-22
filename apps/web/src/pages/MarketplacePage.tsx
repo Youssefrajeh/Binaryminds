@@ -43,11 +43,16 @@ export function MarketplacePage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(marketplaceCache === null);
-  const [error, setError] = useState("");
+  const [fetching, setLoading] = useState(marketplaceCache === null);
+  const [loadError, setError] = useState("");
 
   const priceInvalid =
     minPrice !== "" && maxPrice !== "" && Number(minPrice) > Number(maxPrice);
+  // An invalid price range is shown straight from the inputs; nothing is fetched
+  const error = priceInvalid
+    ? "Minimum price cannot be higher than maximum price."
+    : loadError;
+  const loading = !priceInvalid && fetching;
 
   useEffect(() => {
     async function loadCategories() {
@@ -76,15 +81,13 @@ export function MarketplacePage() {
     const unfiltered =
       !trimmedSearch && !categoryId && !condition && !minPrice && !maxPrice;
 
-    if (priceInvalid) {
-      setError("Minimum price cannot be higher than maximum price.");
-      setLoading(false);
-      return;
-    }
+    if (priceInvalid) return;
 
     // If there is no filter and we already have the first page cached,
     // show it immediately without making another API request.
     if (unfiltered && page === 1 && marketplaceCache) {
+      // Showing the cache synchronously is the point: no loading flash
+      // oxlint-disable-next-line react/set-state-in-effect
       setListings(marketplaceCache.listings);
       setHasMore(marketplaceCache.hasMore);
       setLoading(false);

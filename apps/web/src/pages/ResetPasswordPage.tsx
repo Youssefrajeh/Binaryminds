@@ -1,5 +1,5 @@
 import { isStrongPassword } from "@campushub/shared";
-import { useState, useMemo, useRef, useEffect, type FormEvent, type KeyboardEvent } from "react";
+import { useState, useMemo, useRef, type FormEvent, type KeyboardEvent } from "react";
 import { useLocation, useNavigate, Link } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { PasswordInput } from "../components/PasswordInput";
@@ -104,6 +104,17 @@ export function ResetPasswordPage() {
 
   /* ---- OTP digit input handlers (same UX as VerifyPage) ---- */
 
+  /* Auto-advance to step 2 when all 6 digits are entered */
+  function updateDigits(newDigits: string[]) {
+    setDigits(newDigits);
+    const otp = newDigits.join("");
+    if (otp.length === 6) {
+      setVerifiedOtp(otp);
+      setError("");
+      setStep(2);
+    }
+  }
+
   function handleDigitChange(index: number, value: string) {
     if (!/^\d*$/.test(value)) return;
 
@@ -115,14 +126,14 @@ export function ResetPasswordPage() {
       chars.forEach((ch, i) => {
         if (index + i < 6) newDigits[index + i] = ch;
       });
-      setDigits(newDigits);
+      updateDigits(newDigits);
       const nextIndex = Math.min(index + chars.length, 5);
       inputRefs.current[nextIndex]?.focus();
       return;
     }
 
     newDigits[index] = value;
-    setDigits(newDigits);
+    updateDigits(newDigits);
 
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
@@ -134,18 +145,6 @@ export function ResetPasswordPage() {
       inputRefs.current[index - 1]?.focus();
     }
   }
-
-  /* Auto-advance to step 2 when all 6 digits are entered */
-  useEffect(() => {
-    if (step === 1) {
-      const otp = digits.join("");
-      if (otp.length === 6) {
-        setVerifiedOtp(otp);
-        setError("");
-        setStep(2);
-      }
-    }
-  }, [digits, step]);
 
   /* ---- Step 1: Verify the reset code ---- */
 

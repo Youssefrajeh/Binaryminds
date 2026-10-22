@@ -30,6 +30,8 @@ export function StudyGroupsPage() {
   }
 
   useEffect(() => {
+    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
+    // oxlint-disable-next-line react/set-state-in-effect
     loadGroups();
   }, []);
 

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { AuthProvider, useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
+import { AuthProvider } from "../context/AuthProvider";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { PasswordChecklist } from "./PasswordChecklist";
 

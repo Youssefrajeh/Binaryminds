@@ -60,4 +60,15 @@ describe("brute-force protection", () => {
     }
     expect(last).toBe(429);
   });
+
+  it("returns 429 after too many registrations for one email", async () => {
+    let last = 0;
+    for (let i = 0; i < 12; i++) {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({ email: "spam@fanshaweonline.ca", password: "x", acceptTerms: true });
+      last = res.status;
+    }
+    expect(last).toBe(429);
+  });
 });

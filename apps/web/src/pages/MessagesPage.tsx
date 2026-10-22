@@ -29,6 +29,20 @@ export function MessagesPage() {
   // The open chat may not be in the current list (a new DM, or a request while on Inbox)
   const [active, setActive] = useState<ConversationDto | null>(null);
   const [activeError, setActiveError] = useState("");
+  // Reset during render when the tab or open chat changes (React's pattern for
+  // adjusting state on a prop change), so the effects below only fetch
+  const [shownTab, setShownTab] = useState(tab);
+  if (tab !== shownTab) {
+    setShownTab(tab);
+    setLoading(true);
+  }
+  const [shownConversationId, setShownConversationId] = useState(conversationId);
+  if (conversationId !== shownConversationId) {
+    setShownConversationId(conversationId);
+    setActive(null);
+    setActiveError("");
+  }
+  const requestTabShownFor = useRef<string | null>(null);
   const conversationsRef = useRef(conversations);
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -56,6 +70,12 @@ export function MessagesPage() {
       );
       setActive(res.data);
       setActiveError("");
+      // Opening a request from a link should show the Requests tab, once per chat
+      // so later refreshes don't pull the user off a tab they picked
+      if (res.data.isRequest && requestTabShownFor.current !== res.data.id) {
+        requestTabShownFor.current = res.data.id;
+        setTab("requests");
+      }
     } catch {
       setActive(null);
       setActiveError(
@@ -86,20 +106,16 @@ export function MessagesPage() {
   }, [conversationId, sellerId, navigate]);
 
   useEffect(() => {
-    setLoading(true);
+    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
+    // oxlint-disable-next-line react/set-state-in-effect
     loadList();
   }, [loadList]);
 
   useEffect(() => {
-    setActive(null);
-    setActiveError("");
+    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
+    // oxlint-disable-next-line react/set-state-in-effect
     loadActive();
   }, [loadActive]);
-
-  // Opening a request from a link should show the Requests tab
-  useEffect(() => {
-    if (active?.isRequest) setTab("requests");
-  }, [active?.id, active?.isRequest]);
 
   const refreshAll = useCallback(() => {
     loadList();
@@ -176,6 +192,8 @@ export function MessagesPage() {
 
   // After a reconnect, anything could have changed
   useEffect(() => {
+    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
+    // oxlint-disable-next-line react/set-state-in-effect
     if (connected) loadList();
   }, [connected, loadList]);
 

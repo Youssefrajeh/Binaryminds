@@ -76,15 +76,9 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
   }, [conversationId, onRead]);
 
   /* ---- Initial page ---- */
+  // MessagesPage keys this component by conversation, so state starts fresh for each chat
   useEffect(() => {
     let cancelled = false;
-    loadedOnce.current = false;
-    setMessages([]);
-    setHasMore(false);
-    setCursor(null);
-    setError("");
-    setLoading(true);
-    setTypingUsers([]);
 
     api
       .get<MessagesPageDto>(`/conversations/${conversationId}/messages`)

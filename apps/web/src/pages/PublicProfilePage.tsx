@@ -17,19 +17,23 @@ const YEAR_LABELS: Record<number, string> = {
 export function PublicProfilePage() {
   const { userId } = useParams();
   const { user } = useAuth();
-  const [profile, setProfile] = useState<PublicProfileDto | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  // Tagged with the id it was fetched for, so navigating to another student
+  // shows "loading" until their profile arrives instead of the previous one
+  const [result, setResult] = useState<{ userId: string; profile: PublicProfileDto | null; error: string } | null>(null);
+  const loading = result?.userId !== userId;
+  const profile = loading ? null : result?.profile ?? null;
+  const error = loading ? "" : result?.error ?? "";
 
   useEffect(() => {
     if (!userId || userId === user?.id) return;
-    setLoading(true);
-    setError("");
+    let cancelled = false;
     api
       .get<PublicProfileDto>(`/profile/${userId}`)
-      .then((res) => setProfile(res.data))
-      .catch(() => setError("This student could not be found."))
-      .finally(() => setLoading(false));
+      .then((res) => !cancelled && setResult({ userId, profile: res.data, error: "" }))
+      .catch(() => !cancelled && setResult({ userId, profile: null, error: "This student could not be found." }));
+    return () => {
+      cancelled = true;
+    };
   }, [userId, user?.id]);
 
   // Your own public page is just your profile

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router";
-import { AuthProvider } from "./context/AuthContext";
-import { SocketProvider } from "./context/SocketContext";
+import { AuthProvider } from "./context/AuthProvider";
+import { SocketProvider } from "./context/SocketProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { LandingPage } from "./pages/LandingPage";
