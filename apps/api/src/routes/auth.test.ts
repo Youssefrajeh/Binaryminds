@@ -18,7 +18,7 @@ vi.mock("../lib/email.js", () => ({
 const prisma = prismaClient as unknown as PrismaMock;
 const app = createApp();
 
-const signup = { email: "a_student@fanshaweonline.ca", password: "Campus#2026" };
+const signup = { firstName: "Jane", lastName: "Doe", email: "a_student@fanshaweonline.ca", password: "Campus#2026" };
 
 beforeEach(() => {
   vi.clearAllMocks();

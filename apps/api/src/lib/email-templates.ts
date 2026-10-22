@@ -176,13 +176,24 @@ function codeEmail(c: EmailContent): string {
 /*  Public template functions                                          */
 /* ------------------------------------------------------------------ */
 
-export function verificationEmailHtml(otp: string, expiryMinutes: number): string {
+/** Names are user input, so they must not be able to inject markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export function verificationEmailHtml(otp: string, expiryMinutes: number, firstName?: string | null): string {
+  const greeting = firstName?.trim() ? `Hello ${escapeHtml(firstName.trim())},<br /><br />` : "";
   return codeEmail({
     preheader: `Your CampusHub verification code is ${otp}. It expires in ${expiryMinutes} minutes.`,
     eyebrow: "Email verification",
     title: "Verify your email address",
     intro:
-      "Welcome to CampusHub. Enter the code below on the verification page to confirm your Fanshawe student email and activate your account.",
+      `${greeting}Welcome to CampusHub. Enter the code below on the verification page to confirm your Fanshawe student email and activate your account.`,
     otp,
     expiryMinutes,
     noteTitle: "Keep it private.",

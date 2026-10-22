@@ -93,6 +93,8 @@ model User {
 model PendingRegistration {
   id              String    @id @default(cuid()) @map("_id")
   email           String    @unique
+  firstName       String?
+  lastName        String?
   passwordHash    String
   otpHash         String
   otpExpiresAt    DateTime

@@ -52,7 +52,7 @@ beforeEach(async () => {
 });
 
 describe("POST /api/auth/register", () => {
-  const body = { email, password, acceptTerms: true };
+  const body = { firstName: "Jane", lastName: "Doe", email, password, acceptTerms: true };
 
   it("rejects non-Fanshawe emails", async () => {
     const res = await request(app).post("/api/auth/register").send({ ...body, email: "x@gmail.com" });
@@ -99,6 +99,27 @@ describe("POST /api/auth/register", () => {
     const code = otpFrom(mail.html);
     expect(await bcrypt.compare(code, create.otpHash)).toBe(true);
     expect(mail.to).toBe(email);
+    expect(create.firstName).toBe("Jane");
+    expect(create.lastName).toBe("Doe");
+    expect(mail.html).toContain("Hello Jane,");
+  });
+
+  it.each([
+    ["firstName", "First name is required"],
+    ["lastName", "Last name is required"],
+  ])("requires %s", async (field, message) => {
+    const res = await request(app).post("/api/auth/register").send({ ...body, [field]: "   " });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(message);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("escapes HTML in the name used in the greeting", async () => {
+    prisma.pendingRegistration.upsert.mockResolvedValue({});
+    await request(app).post("/api/auth/register").send({ ...body, firstName: "<b>Jo</b>" });
+    const mail = vi.mocked(sendEmail).mock.calls[0][0];
+    expect(mail.html).toContain("Hello &lt;b&gt;Jo&lt;/b&gt;,");
+    expect(mail.html).not.toContain("<b>Jo</b>");
   });
 
   it("removes the pending registration when the email fails", async () => {
@@ -115,6 +136,8 @@ describe("POST /api/auth/resend-verification", () => {
   const generic = "If a sign-up is pending for that email, a new code has been sent.";
   const pendingRow = () => ({
     email,
+    firstName: "Jane",
+    lastName: "Doe",
     passwordHash: "ph",
     otpHash,
     otpExpiresAt: past(),
@@ -131,6 +154,7 @@ describe("POST /api/auth/resend-verification", () => {
     const mail = vi.mocked(sendEmail).mock.calls[0][0];
     expect(mail.to).toBe(email);
     expect(mail.subject).toBe("CampusHub — Your new verification code");
+    expect(mail.html).toContain("Hello Jane,");
 
     const { where, data } = prisma.pendingRegistration.update.mock.calls[0][0];
     expect(where).toEqual({ email });
@@ -235,6 +259,14 @@ describe("POST /api/auth/verify", () => {
     expect(verifyToken(res.body.token)).toMatchObject({ userId: "u1" });
     expect(res.body.user.passwordHash).toBeUndefined();
     expect(prisma.pendingRegistration.delete).toHaveBeenCalledWith({ where: { email } });
+  });
+
+  it("creates the profile with the name given at sign-up", async () => {
+    prisma.pendingRegistration.findUnique.mockResolvedValue({ ...pending(), firstName: "Jane", lastName: "Doe" });
+    prisma.user.create.mockResolvedValue(baseUser());
+    await request(app).post("/api/auth/verify").send({ email, otp: "123456" });
+    const { data } = prisma.user.create.mock.calls[0][0];
+    expect(data.profile).toEqual({ create: { displayName: "Jane Doe", interests: [] } });
   });
 });
 

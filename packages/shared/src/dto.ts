@@ -5,6 +5,8 @@
 /* ---- Auth ---- */
 
 export interface RegisterInput {
+  firstName: string;
+  lastName: string;
   email: string;
   password: string;
   /** Must be true: the user accepted the Terms and Conditions */

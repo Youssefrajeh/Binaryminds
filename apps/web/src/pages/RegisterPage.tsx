@@ -87,6 +87,8 @@ function PasswordMatchIndicator({
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -97,6 +99,11 @@ export function RegisterPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!firstName.trim() || !lastName.trim()) {
+      setError("Please enter your first and last name");
+      return;
+    }
 
     if (!email.toLowerCase().endsWith("@fanshaweonline.ca")) {
       setError("Please use your Fanshawe student email (@fanshaweonline.ca)");
@@ -120,7 +127,13 @@ export function RegisterPage() {
 
     setLoading(true);
     try {
-      await api.post("/auth/register", { email, password, acceptTerms });
+      await api.post("/auth/register", {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email,
+        password,
+        acceptTerms,
+      });
       navigate("/verify", { state: { email } });
     } catch (err: any) {
       setError(err.response?.data?.error || "Something went wrong");
@@ -148,6 +161,41 @@ export function RegisterPage() {
             {error}
           </div>
         )}
+
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div>
+            <label htmlFor="register-first-name" className="field-label">
+              First name
+            </label>
+            <input
+              id="register-first-name"
+              type="text"
+              required
+              maxLength={50}
+              autoComplete="given-name"
+              placeholder="Jane"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="field-input"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-last-name" className="field-label">
+              Last name
+            </label>
+            <input
+              id="register-last-name"
+              type="text"
+              required
+              maxLength={50}
+              autoComplete="family-name"
+              placeholder="Doe"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="field-input"
+            />
+          </div>
+        </div>
 
         <div>
           <label htmlFor="register-email" className="field-label">

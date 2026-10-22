@@ -98,6 +98,8 @@ describe("RegisterPage", () => {
   const good = { email: "a@fanshaweonline.ca", pw: "Campus#2026" };
 
   function fillValid() {
+    type("register-first-name", "Jane");
+    type("register-last-name", "Doe");
     type("register-email", good.email);
     type("register-password", good.pw);
     type("register-confirm", good.pw);
@@ -106,6 +108,15 @@ describe("RegisterPage", () => {
 
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("requires a first and last name", () => {
+    renderAt("/register", <RegisterPage />);
+    fillValid();
+    type("register-last-name", "  ");
+    submit();
+    expect(screen.getByText("Please enter your first and last name")).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("rejects non-Fanshawe emails client-side", () => {
@@ -160,6 +171,8 @@ describe("RegisterPage", () => {
     submit();
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith("/auth/register", {
+        firstName: "Jane",
+        lastName: "Doe",
         email: good.email,
         password: good.pw,
         acceptTerms: true,

@@ -45,7 +45,16 @@ function attemptLimit(scope: string, includeIp: boolean) {
 /*  Validation schemas                                                 */
 /* ------------------------------------------------------------------ */
 
+const nameSchema = (label: string) =>
+  z
+    .string({ error: `${label} is required` })
+    .trim()
+    .min(1, { error: `${label} is required` })
+    .max(50, { error: `${label} must be 50 characters or fewer` });
+
 const registerSchema = z.object({
+  firstName: nameSchema("First name"),
+  lastName: nameSchema("Last name"),
   email: z.string().email(),
   password: passwordSchema,
   acceptTerms: z.literal(true, { error: "You must accept the Terms and Conditions to sign up" }),
@@ -134,7 +143,7 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
       return;
     }
 
-    const { email, password } = parsed.data;
+    const { firstName, lastName, email, password } = parsed.data;
 
     if (!isAllowedDomain(email)) {
       res.status(400).json({ error: "Only Fanshawe student email addresses are allowed" });
@@ -157,7 +166,7 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
     const emailSent = sendEmail({
       to: email,
       subject: "CampusHub — Verify your email",
-      html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
+      html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES, firstName),
     });
 
     const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -172,8 +181,8 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
       ]);
       await prisma.pendingRegistration.upsert({
         where: { email },
-        create: { email, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt },
-        update: { passwordHash, otpHash, otpExpiresAt, termsAcceptedAt, createdAt: new Date() },
+        create: { email, firstName, lastName, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt },
+        update: { firstName, lastName, passwordHash, otpHash, otpExpiresAt, termsAcceptedAt, createdAt: new Date() },
       });
     })();
 
@@ -220,7 +229,7 @@ authRouter.post("/resend-verification", attemptLimit("resend", true), async (req
       await sendEmail({
         to: email,
         subject: "CampusHub — Your new verification code",
-        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES),
+        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES, pending.firstName),
       });
 
       await prisma.pendingRegistration.update({
@@ -280,6 +289,9 @@ authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
       return;
     }
 
+    // The name given at sign-up becomes the profile's display name
+    const fullName = [pending.firstName, pending.lastName].filter(Boolean).join(" ");
+
     const updated = await prisma.user.create({
       data: {
         email,
@@ -287,6 +299,7 @@ authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
         emailVerifiedAt: new Date(),
         termsAcceptedAt: pending.termsAcceptedAt,
         status: "ACTIVE",
+        ...(fullName ? { profile: { create: { displayName: fullName, interests: [] } } } : {}),
       },
       include: { profile: true },
     });
