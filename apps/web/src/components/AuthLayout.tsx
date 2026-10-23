@@ -15,7 +15,7 @@ export function AuthLayout({ title, subtitle, children, footer, hero }: AuthLayo
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
-        <Logo />
+        <Logo animated />
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link to="/" className="text-sm font-medium text-ink-soft transition hover:text-ink">

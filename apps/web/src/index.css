@@ -233,7 +233,34 @@ body {
   65% { transform: translateY(2px); }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Navbar wordmark                                                    */
+/* ------------------------------------------------------------------ */
+
+/* The intro choreography lives in Logo.tsx (Web Animations API) */
+.logo-letter {
+  display: inline-block;
+  transform-origin: 50% 100%;
+}
+
+.logo-dash {
+  transform-origin: 50% 62%;
+}
+
+.group:hover .logo-letter {
+  animation: logo-wave 0.45s ease-in-out;
+  animation-delay: calc(var(--i) * 30ms);
+}
+
+@keyframes logo-wave {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-18%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .logo-letter {
+    animation: none !important;
+  }
   .mascot-move,
   .mascot-mouth {
     transition: none;

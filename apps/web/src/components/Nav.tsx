@@ -29,7 +29,7 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Logo />
+        <Logo animated />
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-2 sm:flex">
