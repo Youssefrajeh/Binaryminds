@@ -36,3 +36,21 @@ export function newClientId(): string {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+/** Event card date: "Fri, Oct 31, 2026" */
+export function formatEventDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Event card time: "6:00 PM – 8:00 PM" */
+export function formatTimeRange(startIso: string, endIso: string): string {
+  const options: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+  const start = new Date(startIso).toLocaleTimeString(undefined, options);
+  const end = new Date(endIso).toLocaleTimeString(undefined, options);
+  return `${start} – ${end}`;
+}
