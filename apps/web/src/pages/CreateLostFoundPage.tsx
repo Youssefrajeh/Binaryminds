@@ -1,6 +1,8 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
+import { FieldError } from "../components/FieldError";
+import { errorProps, type Errors } from "../lib/fieldErrors";
 import { apiErrorMessage } from "../lib/errors";
 import { fileToDataUrl, photoError } from "../lib/image";
 import {
@@ -11,7 +13,7 @@ import {
 } from "../services/lostFoundService";
 
 type Field = "kind" | "title" | "description" | "category" | "location" | "occurredOn" | "photo";
-type FieldErrors = Partial<Record<Field, string>>;
+type FieldErrors = Errors<Field>;
 
 // en-CA formats as YYYY-MM-DD, which is what <input type="date"> uses
 function today() {
@@ -40,22 +42,6 @@ function validate(form: typeof emptyForm): FieldErrors {
     errors.occurredOn = "Date cannot be in the future.";
   }
   return errors;
-}
-
-/** Props that link an input to its error message for screen readers */
-function errorProps(errors: FieldErrors, field: Field) {
-  return errors[field]
-    ? { "aria-invalid": true, "aria-describedby": `lf-${field}-error` }
-    : {};
-}
-
-function FieldError({ errors, field }: { errors: FieldErrors; field: Field }) {
-  if (!errors[field]) return null;
-  return (
-    <p id={`lf-${field}-error`} className="mt-1 text-xs text-danger">
-      {errors[field]}
-    </p>
-  );
 }
 
 export function CreateLostFoundPage() {
@@ -189,7 +175,7 @@ export function CreateLostFoundPage() {
                   </label>
                 ))}
               </div>
-              <FieldError errors={errors} field="kind" />
+              <FieldError errors={errors} prefix="lf" field="kind" />
             </fieldset>
 
             <div>
@@ -204,9 +190,9 @@ export function CreateLostFoundPage() {
                 className="field-input"
                 value={form.title}
                 onChange={(e) => update("title", e.target.value)}
-                {...errorProps(errors, "title")}
+                {...errorProps(errors, "lf", "title")}
               />
-              <FieldError errors={errors} field="title" />
+              <FieldError errors={errors} prefix="lf" field="title" />
             </div>
 
             <div>
@@ -221,9 +207,9 @@ export function CreateLostFoundPage() {
                 className="field-input resize-none"
                 value={form.description}
                 onChange={(e) => update("description", e.target.value)}
-                {...errorProps(errors, "description")}
+                {...errorProps(errors, "lf", "description")}
               />
-              <FieldError errors={errors} field="description" />
+              <FieldError errors={errors} prefix="lf" field="description" />
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2">
@@ -236,7 +222,7 @@ export function CreateLostFoundPage() {
                   className="field-input"
                   value={form.category}
                   onChange={(e) => update("category", e.target.value as LostFoundCategory)}
-                  {...errorProps(errors, "category")}
+                  {...errorProps(errors, "lf", "category")}
                 >
                   <option value="">Select a category</option>
                   {LOST_FOUND_CATEGORIES.map((c) => (
@@ -245,7 +231,7 @@ export function CreateLostFoundPage() {
                     </option>
                   ))}
                 </select>
-                <FieldError errors={errors} field="category" />
+                <FieldError errors={errors} prefix="lf" field="category" />
               </div>
 
               <div>
@@ -259,9 +245,9 @@ export function CreateLostFoundPage() {
                   className="field-input"
                   value={form.occurredOn}
                   onChange={(e) => update("occurredOn", e.target.value)}
-                  {...errorProps(errors, "occurredOn")}
+                  {...errorProps(errors, "lf", "occurredOn")}
                 />
-                <FieldError errors={errors} field="occurredOn" />
+                <FieldError errors={errors} prefix="lf" field="occurredOn" />
               </div>
             </div>
 
@@ -277,9 +263,9 @@ export function CreateLostFoundPage() {
                 className="field-input"
                 value={form.location}
                 onChange={(e) => update("location", e.target.value)}
-                {...errorProps(errors, "location")}
+                {...errorProps(errors, "lf", "location")}
               />
-              <FieldError errors={errors} field="location" />
+              <FieldError errors={errors} prefix="lf" field="location" />
             </div>
 
             <div>
@@ -296,7 +282,7 @@ export function CreateLostFoundPage() {
                 aria-invalid={errors.photo ? true : undefined}
               />
               {errors.photo ? (
-                <FieldError errors={errors} field="photo" />
+                <FieldError errors={errors} prefix="lf" field="photo" />
               ) : (
                 <p id="lf-photo-hint" className="mt-1 text-xs text-muted">
                   Optional. JPG, PNG, or WebP. Maximum 2 MB.
