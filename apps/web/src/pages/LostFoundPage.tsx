@@ -288,7 +288,7 @@ export function LostFoundPage() {
                     <img
                       src={post.imageUrl}
                       alt={post.title}
-                      className={`aspect-[4/3] w-full object-contain p-4 ${resolved ? "opacity-60" : ""}`}
+                      className={`aspect-[4/3] w-full object-contain p-8 ${resolved ? "opacity-60" : ""}`}
                     />
                   ) : (
                     <div className="flex aspect-[4/3] items-center justify-center bg-canvas text-sm text-muted">
