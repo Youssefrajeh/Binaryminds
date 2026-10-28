@@ -1,5 +1,33 @@
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+// Post photos are stored as data URLs, so they share the listing photo limit
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+
+/** Why a post photo can't be uploaded, or null when it is fine */
+export function photoError(file: File): string | null {
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    return "Only JPG, PNG, and WebP images are allowed.";
+  }
+  if (file.size > MAX_PHOTO_BYTES) {
+    return "Each photo must be smaller than 2 MB.";
+  }
+  return null;
+}
+
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Unable to read the photo."));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read the photo."));
+    reader.readAsDataURL(file);
+  });
+}
 
 /**
  * Center-crops an image file to a square and scales it down to `size` px,
