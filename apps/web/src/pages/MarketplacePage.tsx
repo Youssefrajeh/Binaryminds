@@ -2,38 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
-
-type ListingImage = {
-  id: string;
-  url: string;
-  sortOrder: number;
-};
-
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-};
-
-type Seller = {
-  id: string;
-};
-
-type Listing = {
-  id: string;
-  title: string;
-  description: string;
-  priceCents: number;
-  condition: string;
-  createdAt: string;
-  category: Category;
-  images: ListingImage[];
-  seller: Seller;
-};
-
-let marketplaceCache: { listings: Listing[]; hasMore: boolean } | null = null;
+import { StatusBadge } from "../components/StatusBadge";
+import { useAuth } from "../context/AuthContext";
+import {
+  getCachedFirstPage,
+  setCachedFirstPage,
+  type Category,
+  type Listing,
+} from "../services/listingService";
 
 export function MarketplacePage() {
+  const { user } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -43,7 +22,7 @@ export function MarketplacePage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [fetching, setLoading] = useState(marketplaceCache === null);
+  const [fetching, setLoading] = useState(() => getCachedFirstPage() === null);
   const [loadError, setError] = useState("");
 
   const priceInvalid =
@@ -85,6 +64,7 @@ export function MarketplacePage() {
 
     // If there is no filter and we already have the first page cached,
     // show it immediately without making another API request.
+    const marketplaceCache = getCachedFirstPage();
     if (unfiltered && page === 1 && marketplaceCache) {
       // Showing the cache synchronously is the point: no loading flash
       // oxlint-disable-next-line react/set-state-in-effect
@@ -119,7 +99,7 @@ export function MarketplacePage() {
 
         // Only cache the first page of the unfiltered marketplace.
         if (unfiltered && page === 1) {
-          marketplaceCache = { listings: response.data, hasMore: more };
+          setCachedFirstPage({ listings: response.data, hasMore: more });
         }
       } catch (err: any) {
         console.error("Failed to load listings:", err);
@@ -262,14 +242,20 @@ export function MarketplacePage() {
                   <img
                     src={listing.images[0].url}
                     alt={listing.title}
-                    className="aspect-[4/3] w-full object-cover"
+                    className={`aspect-[4/3] w-full object-contain p-8 ${listing.status === "SOLD" ? "opacity-60" : ""}`}
                   />
                 )}
 
                 <div className="p-5">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                    {listing.category.name}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                      {listing.category.name}
+                    </p>
+                    {listing.status === "SOLD" && <StatusBadge tone="danger">Sold</StatusBadge>}
+                    {listing.seller.id === user?.id && (
+                      <StatusBadge tone="neutral">Your listing</StatusBadge>
+                    )}
+                  </div>
 
                   <h2 className="mt-1 text-lg font-semibold text-ink">
                     {listing.title}

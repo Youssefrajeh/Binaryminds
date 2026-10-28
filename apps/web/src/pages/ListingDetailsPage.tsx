@@ -1,49 +1,36 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Nav } from "../components/Nav";
-import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Avatar } from "../components/Avatar";
 import { MessageButton } from "../components/MessageButton";
-
-type ListingImage = {
-  id: string;
-  url: string;
-  sortOrder: number;
-};
-
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-};
-
-type Seller = {
-  id: string;
-  profile?: {
-    displayName: string;
-    avatarUrl?: string | null;
-  } | null;
-};
-
-type Listing = {
-  id: string;
-  title: string;
-  description: string;
-  priceCents: number;
-  condition: string;
-  createdAt: string;
-  category: Category;
-  images: ListingImage[];
-  seller: Seller;
-};
+import { StatusBadge } from "../components/StatusBadge";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ReportButton } from "../components/ReportButton";
+import { apiErrorMessage } from "../lib/errors";
+import {
+  deleteListing,
+  getListing,
+  markListingSold,
+  type Listing,
+} from "../services/listingService";
 
 export function ListingDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // The edit form sends a short confirmation here after saving
+  const flash = (location.state as { flash?: string } | null)?.flash;
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [actionError, setActionError] = useState("");
+  const [markingSold, setMarkingSold] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     async function loadListing() {
@@ -58,12 +45,11 @@ export function ListingDetailsPage() {
       }
 
       try {
-        const response = await api.get<Listing>(`/listings/${id}`);
-        setListing(response.data);
-      } catch (err: any) {
+        setListing(await getListing(id));
+      } catch (err) {
         console.error("Failed to load listing:", err);
 
-        setError(err.response?.data?.error || "Failed to load listing.");
+        setError(apiErrorMessage(err, "Failed to load listing."));
       } finally {
         setLoading(false);
       }
@@ -71,6 +57,37 @@ export function ListingDetailsPage() {
 
     loadListing();
   }, [id]);
+
+  async function handleMarkSold() {
+    if (!listing) return;
+    setActionError("");
+    setMarkingSold(true);
+    try {
+      const updated = await markListingSold(listing.id);
+      setListing((current) => current && { ...current, status: updated?.status ?? "SOLD" });
+    } catch (err) {
+      setActionError(apiErrorMessage(err, "Failed to mark the listing as sold."));
+    } finally {
+      setMarkingSold(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!listing) return;
+    setDeleteError("");
+    setDeleting(true);
+    try {
+      await deleteListing(listing.id);
+      navigate("/marketplace", { replace: true });
+    } catch (err) {
+      setDeleteError(apiErrorMessage(err, "Failed to delete the listing."));
+      setDeleting(false);
+    }
+  }
+
+  const isOwner = !!listing && user?.id === listing.seller.id;
+  const sold = listing?.status === "SOLD";
+  const busy = markingSold || deleting;
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -80,6 +97,12 @@ export function ListingDetailsPage() {
         <Link to="/marketplace" className="link text-sm">
           ← Back to Marketplace
         </Link>
+
+        {flash && (
+          <div role="status" className="alert-success mt-6">
+            {flash}
+          </div>
+        )}
 
         {loading && (
           <p className="mt-8 text-sm text-ink-soft">Loading listing...</p>
@@ -104,9 +127,12 @@ export function ListingDetailsPage() {
             </div>
 
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                {listing.category.name}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                  {listing.category.name}
+                </p>
+                {sold && <StatusBadge tone="danger">Sold</StatusBadge>}
+              </div>
 
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink">
                 {listing.title}
@@ -154,19 +180,69 @@ export function ListingDetailsPage() {
                 </p>
               </div>
 
-              {user?.id !== listing.seller.id && (
-                <div className="mt-6">
-                  <MessageButton
-                    recipientId={listing.seller.id}
-                    listingId={listing.id}
-                    label="Message Seller"
-                    className="btn-primary inline-flex w-full justify-center px-6 py-3"
-                  />
+              {isOwner ? (
+                <section aria-label="Manage your listing" className="mt-6 space-y-3">
+                  {actionError && (
+                    <div role="alert" className="alert-error">
+                      {actionError}
+                    </div>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <Link to={`/marketplace/${listing.id}/edit`} className="btn-secondary">
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleMarkSold}
+                      disabled={sold || busy}
+                    >
+                      {markingSold ? "Saving..." : sold ? "Sold" : "Mark as Sold"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary border-danger/40 text-danger hover:bg-danger-soft"
+                      onClick={() => {
+                        setDeleteError("");
+                        setConfirmDelete(true);
+                      }}
+                      disabled={busy}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <div className="mt-6 space-y-3">
+                  {!sold && (
+                    <MessageButton
+                      recipientId={listing.seller.id}
+                      listingId={listing.id}
+                      label="Message Seller"
+                      className="btn-primary inline-flex w-full justify-center px-6 py-3"
+                    />
+                  )}
+                  <ReportButton contentType="LISTING" contentId={listing.id} className="w-full" />
                 </div>
               )}
             </div>
           </div>
         )}
+
+        <ConfirmDialog
+          open={confirmDelete}
+          title="Delete this listing?"
+          confirmLabel="Delete listing"
+          cancelLabel="Keep listing"
+          busyLabel="Deleting..."
+          busy={deleting}
+          error={deleteError}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        >
+          <strong className="text-ink">{listing?.title}</strong> will be removed from the marketplace.
+          This can't be undone.
+        </ConfirmDialog>
       </main>
     </div>
   );

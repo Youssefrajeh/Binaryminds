@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import { StatusBadge } from "../components/StatusBadge";
+import { ReportButton } from "../components/ReportButton";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../lib/errors";
 import {
@@ -287,7 +288,7 @@ export function LostFoundPage() {
                     <img
                       src={post.imageUrl}
                       alt={post.title}
-                      className={`aspect-[4/3] w-full object-cover ${resolved ? "opacity-60" : ""}`}
+                      className={`aspect-[4/3] w-full object-contain p-8 ${resolved ? "opacity-60" : ""}`}
                     />
                   ) : (
                     <div className="flex aspect-[4/3] items-center justify-center bg-canvas text-sm text-muted">
@@ -333,6 +334,7 @@ export function LostFoundPage() {
                           {resolvingId === post.id ? "Saving..." : "Mark as Resolved"}
                         </button>
                       )}
+                      {!isOwner && <ReportButton contentType="LOST_FOUND_POST" contentId={post.id} />}
                     </div>
                   </div>
                 </li>

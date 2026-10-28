@@ -113,6 +113,14 @@ function App() {
               }
             />
             <Route
+              path="/marketplace/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <CreateListingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/marketplace/:id"
               element={
                 <ProtectedRoute>
