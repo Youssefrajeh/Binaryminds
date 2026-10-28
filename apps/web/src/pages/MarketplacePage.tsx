@@ -242,7 +242,7 @@ export function MarketplacePage() {
                   <img
                     src={listing.images[0].url}
                     alt={listing.title}
-                    className={`aspect-[4/3] w-full object-cover ${listing.status === "SOLD" ? "opacity-60" : ""}`}
+                    className={`aspect-[4/3] w-full object-contain p-4 ${listing.status === "SOLD" ? "opacity-60" : ""}`}
                   />
                 )}
 
