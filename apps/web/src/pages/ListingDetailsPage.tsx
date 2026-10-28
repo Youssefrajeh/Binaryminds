@@ -6,6 +6,7 @@ import { Avatar } from "../components/Avatar";
 import { MessageButton } from "../components/MessageButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ReportButton } from "../components/ReportButton";
 import { apiErrorMessage } from "../lib/errors";
 import {
   deleteListing,
@@ -212,16 +213,17 @@ export function ListingDetailsPage() {
                   </div>
                 </section>
               ) : (
-                !sold && (
-                  <div className="mt-6">
+                <div className="mt-6 space-y-3">
+                  {!sold && (
                     <MessageButton
                       recipientId={listing.seller.id}
                       listingId={listing.id}
                       label="Message Seller"
                       className="btn-primary inline-flex w-full justify-center px-6 py-3"
                     />
-                  </div>
-                )
+                  )}
+                  <ReportButton contentType="LISTING" contentId={listing.id} className="w-full" />
+                </div>
               )}
             </div>
           </div>

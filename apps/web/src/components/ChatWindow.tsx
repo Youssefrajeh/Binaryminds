@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Link, useNavigate } from "react-router";
 import type { ConversationDto, MessageDto, MessagesPageDto } from "@campushub/shared";
 import { Avatar } from "./Avatar";
+import { ReportButton } from "./ReportButton";
 import { useSocket } from "../context/SocketContext";
 import { formatDayLabel, formatMessageTime, newClientId } from "../lib/format";
 import api from "../lib/api";
@@ -408,7 +409,15 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
                           </button>
                         </span>
                       ) : (
-                        formatMessageTime(m.createdAt)
+                        <>
+                          {formatMessageTime(m.createdAt)}
+                          {!mine && (
+                            <>
+                              {" · "}
+                              <ReportButton variant="link" contentType="MESSAGE" contentId={m.id} />
+                            </>
+                          )}
+                        </>
                       )}
                     </p>
                   </div>

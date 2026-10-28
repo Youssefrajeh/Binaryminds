@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import { StatusBadge } from "../components/StatusBadge";
+import { ReportButton } from "../components/ReportButton";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../lib/errors";
 import {
@@ -333,6 +334,7 @@ export function LostFoundPage() {
                           {resolvingId === post.id ? "Saving..." : "Mark as Resolved"}
                         </button>
                       )}
+                      {!isOwner && <ReportButton contentType="LOST_FOUND_POST" contentId={post.id} />}
                     </div>
                   </div>
                 </li>
