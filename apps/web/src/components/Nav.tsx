@@ -52,6 +52,9 @@ export function Nav() {
               <Link to="/marketplace" className={navLink}>
                 Marketplace
               </Link>
+              <Link to="/lost-found" className={navLink}>
+                Lost &amp; Found
+              </Link>
               <Link to="/members" className={navLink}>
                 Students
               </Link>
@@ -145,6 +148,13 @@ export function Nav() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Study groups
+                </Link>
+                <Link
+                  to="/lost-found"
+                  className={navLink}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Lost &amp; Found
                 </Link>
                 <Link
                   to="/members"

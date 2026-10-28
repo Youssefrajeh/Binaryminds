@@ -20,6 +20,8 @@ import { AboutPage } from "./pages/AboutPage";
 import { MarketplacePage } from "./pages/MarketplacePage";
 import { CreateListingPage } from "./pages/CreateListingPage";
 import { ListingDetailsPage } from "./pages/ListingDetailsPage";
+import { LostFoundPage } from "./pages/LostFoundPage";
+import { CreateLostFoundPage } from "./pages/CreateLostFoundPage";
 
 function App() {
   return (
@@ -113,6 +115,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ListingDetailsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lost-found"
+              element={
+                <ProtectedRoute>
+                  <LostFoundPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lost-found/new"
+              element={
+                <ProtectedRoute>
+                  <CreateLostFoundPage />
                 </ProtectedRoute>
               }
             />
