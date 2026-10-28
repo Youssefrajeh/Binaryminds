@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 vi.mock("../components/Nav", () => ({ Nav: () => <nav /> }));
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("../lib/api", () => ({ default: { get } }));
+vi.mock("../context/AuthContext", () => ({ useAuth: () => ({ user: { id: "me" } }) }));
 
 const listing = {
   id: "l1",
