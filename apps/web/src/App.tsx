@@ -22,6 +22,8 @@ import { CreateListingPage } from "./pages/CreateListingPage";
 import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { LostFoundPage } from "./pages/LostFoundPage";
 import { CreateLostFoundPage } from "./pages/CreateLostFoundPage";
+import { EventsPage } from "./pages/EventsPage";
+import { EventFormPage } from "./pages/EventFormPage";
 
 function App() {
   return (
@@ -131,6 +133,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CreateLostFoundPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/events"
+              element={
+                <ProtectedRoute>
+                  <EventsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/events/new"
+              element={
+                <ProtectedRoute>
+                  <EventFormPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/events/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <EventFormPage />
                 </ProtectedRoute>
               }
             />

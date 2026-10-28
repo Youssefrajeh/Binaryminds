@@ -55,6 +55,9 @@ export function Nav() {
               <Link to="/lost-found" className={navLink}>
                 Lost &amp; Found
               </Link>
+              <Link to="/events" className={navLink}>
+                Events
+              </Link>
               <Link to="/members" className={navLink}>
                 Students
               </Link>
@@ -155,6 +158,13 @@ export function Nav() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Lost &amp; Found
+                </Link>
+                <Link
+                  to="/events"
+                  className={navLink}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Events
                 </Link>
                 <Link
                   to="/members"
