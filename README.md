@@ -127,3 +127,46 @@ so you don't need to configure anything extra.
 | `npm test` | Run tests in all workspaces |
 | `npm run prisma:generate -w @campushub/api` | Regenerate Prisma client after schema changes |
 | `npm run prisma:push -w @campushub/api` | Push schema changes to the database |
+
+## Lost & Found (Sprint 03, US-1 and US-2)
+
+Verified students can open **Lost & Found → Report an item**, choose Lost or Found,
+and enter a title, description, category, campus location, and date. A photo is
+optional (JPG, PNG, or WebP, up to 2 MB). Photos are stored as data URLs in MongoDB,
+using the same storage approach as marketplace photos; no extra storage account is
+needed. The API checks the decoded size and file signature as well as the MIME type.
+Dates use Toronto's calendar date and cannot be in the future.
+
+The board supports keyword search, lost/found type, category, partial location
+(case-insensitive), and inclusive From/To dates. Filters work independently or in
+combination. Results are newest first, with 12 posts per page and a **Load more**
+button. Failed loads can be retried, and changing filters resets pagination.
+Students can view the poster's profile and message them about an open report.
+The existing **Mark as Resolved** action now persists and is restricted to its owner.
+
+API endpoints (all require an active account's Bearer token):
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/lost-found` | Create a report; ownership and initial Open status come from the server |
+| `GET` | `/api/lost-found` | Filter by `search`, `kind`, `category`, `location`, `from`, `to`, `page`, and optional `limit` (1–50) |
+| `PATCH` | `/api/lost-found/:id/resolve` | Mark your report as resolved |
+
+**Database setup/update:** after setting `apps/api/.env` as above, run:
+
+```bash
+npm run prisma:generate -w @campushub/api
+npm run prisma:push -w @campushub/api
+```
+
+The schema adds category and indexes for newest-first browsing, category browsing,
+and occurrence-date filtering. Older reports without category remain visible as
+**Other**; no destructive reset or data deletion is needed. Location and keyword
+substring matching use MongoDB's case-insensitive filters; these substring queries
+are not accelerated by the ordinary category/date indexes.
+
+`npm test` includes route validation/authorization tests, React form/filter tests,
+and integration tests against a disposable local MongoDB replica set. The database
+test library downloads a MongoDB binary on its first test run, stops the test
+database afterward, and never connects to your Atlas/development database.
+The shared package is compiled automatically before dev, test, and production builds.

@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run build -w @campushub/shared",
+    "prebuild": "npm run build -w @campushub/shared",
+    "pretest": "npm run build -w @campushub/shared",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

@@ -3,7 +3,7 @@
 **Team:** Binary Minds
 **Members:** Youssef Rajeh (Front-End Lead), Abdul Maarouf (Scrum Master / Back-End Lead), Urshit Patel (Database, Deployment & Testing)
 **Tech Stack:** React, Node.js / Express, MongoDB, hosted on Render
-**Sprint Status:** Planned
+**Sprint Status:** In progress — US-1 and US-2 implemented locally; deployment verification pending
 
 ---
 
@@ -17,8 +17,8 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | # | User Story | Feature Area | Status |
 |---|------------|--------------|--------|
-| US-1 | As a Student, I want to post a lost or found item report with a description, photo, location, and date. | Lost & Found | Planned |
-| US-2 | As a Student, I want to search and filter lost-and-found posts by category, location, and date. | Lost & Found | Planned |
+| US-1 | As a Student, I want to post a lost or found item report with a description, photo, location, and date. | Lost & Found | Implemented locally; deployment pending |
+| US-2 | As a Student, I want to search and filter lost-and-found posts by category, location, and date. | Lost & Found | Implemented locally; deployment pending |
 | US-3 | As a Student, I want to mark my lost-and-found post as resolved. | Lost & Found | Planned |
 | US-4 | As a Student, I want to browse upcoming campus events with their date, time, location, and organizer. | Campus Events | Planned |
 | US-5 | As an Event Organizer, I want to create, edit, and cancel campus events. | Campus Events | Planned |
@@ -34,11 +34,11 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Build lost/found post form | Youssef | Planned |
-| Create API for lost/found posts | Abdul | Planned |
-| Set up/update LostFoundPost model | Urshit | Planned |
-| Connect form to API | Youssef, Abdul | Planned |
-| Test creating lost/found posts | Urshit | Planned |
+| Build lost/found post form | Youssef | Implemented |
+| Create API for lost/found posts | Abdul | Implemented |
+| Set up/update LostFoundPost model | Urshit | Implemented; shared DB schema push pending |
+| Connect form to API | Youssef, Abdul | Implemented |
+| Test creating lost/found posts | Urshit | Automated UI/API and disposable MongoDB coverage added |
 
 **Acceptance Criteria**
 - A logged-in student can submit a post with type (lost/found), description, photo, location, and date.
@@ -52,11 +52,11 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Build search and filter UI | Youssef | Planned |
-| Create search/filter API logic | Abdul | Planned |
-| Set up database queries/indexing | Urshit | Planned |
-| Connect filters to backend | Youssef, Abdul | Planned |
-| Test category, location, and date filters | Urshit | Planned |
+| Build search and filter UI | Youssef | Implemented |
+| Create search/filter API logic | Abdul | Implemented |
+| Set up database queries/indexing | Urshit | Implemented; shared DB schema push pending |
+| Connect filters to backend | Youssef, Abdul | Implemented |
+| Test category, location, and date filters | Urshit | Automated UI/API and disposable MongoDB coverage added |
 
 **Acceptance Criteria**
 - Students can filter posts by category, location, and date, alone or combined.

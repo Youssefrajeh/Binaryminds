@@ -35,6 +35,16 @@ enum LostFoundStatus {
   RESOLVED
 }
 
+enum LostFoundCategory {
+  ELECTRONICS
+  ID_CARDS
+  KEYS
+  CLOTHING
+  BAGS
+  BOOKS
+  OTHER
+}
+
 enum EventStatus {
   DRAFT
   PUBLISHED
@@ -246,11 +256,17 @@ model LostFoundPost {
   kind        LostFoundKind
   title       String
   description String
+  // Nullable for reports created before categories existed; new posts require it in the API.
+  category    LostFoundCategory? @default(OTHER)
   location    String
   occurredOn  DateTime
   imageUrl    String?
   status      LostFoundStatus @default(OPEN)
   createdAt   DateTime        @default(now())
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([category, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([occurredOn])
 }
 
 model Event {

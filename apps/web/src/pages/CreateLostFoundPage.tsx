@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { campusToday } from "@campushub/shared";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import { FieldError } from "../components/FieldError";
@@ -14,11 +15,6 @@ import {
 
 type Field = "kind" | "title" | "description" | "category" | "location" | "occurredOn" | "photo";
 type FieldErrors = Errors<Field>;
-
-// en-CA formats as YYYY-MM-DD, which is what <input type="date"> uses
-function today() {
-  return new Date().toLocaleDateString("en-CA");
-}
 
 const emptyForm = {
   kind: "" as LostFoundKind | "",
@@ -38,7 +34,7 @@ function validate(form: typeof emptyForm): FieldErrors {
   if (!form.location.trim()) errors.location = "Location is required.";
   if (!form.occurredOn) {
     errors.occurredOn = "Date is required.";
-  } else if (form.occurredOn > today()) {
+  } else if (form.occurredOn > campusToday()) {
     errors.occurredOn = "Date cannot be in the future.";
   }
   return errors;
@@ -84,14 +80,17 @@ export function CreateLostFoundPage() {
   function removePhoto() {
     setPhoto(null);
     setPhotoPreview("");
+    setErrors((current) => ({ ...current, photo: undefined }));
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setSubmitError("");
     setSuccess(false);
 
     const found = validate(form);
+    if (errors.photo) found.photo = errors.photo;
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
@@ -135,7 +134,8 @@ export function CreateLostFoundPage() {
         </p>
 
         <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate aria-busy={submitting}>
+            <fieldset disabled={submitting} className="min-w-0 space-y-6">
             {submitError && (
               <div role="alert" className="alert-error">
                 {submitError}
@@ -151,13 +151,13 @@ export function CreateLostFoundPage() {
               </div>
             )}
 
-            <fieldset aria-describedby={errors.kind ? "lf-kind-error" : undefined}>
+            <fieldset disabled={submitting} aria-describedby={errors.kind ? "lf-kind-error" : undefined}>
               <legend className="field-label">Type *</legend>
               <div className="grid grid-cols-2 gap-3">
                 {(["LOST", "FOUND"] as const).map((kind) => (
                   <label
                     key={kind}
-                    className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition ${
+                      className={`relative flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand ${
                       form.kind === kind
                         ? "border-brand bg-brand-soft text-brand"
                         : "border-line bg-surface text-ink-soft hover:bg-canvas"
@@ -241,13 +241,15 @@ export function CreateLostFoundPage() {
                 <input
                   id="lf-date"
                   type="date"
-                  max={today()}
+                  max={campusToday()}
                   className="field-input"
                   value={form.occurredOn}
                   onChange={(e) => update("occurredOn", e.target.value)}
+                  aria-describedby={!errors.occurredOn ? "lf-date-hint" : undefined}
                   {...errorProps(errors, "lf", "occurredOn")}
                 />
                 <FieldError errors={errors} prefix="lf" field="occurredOn" />
+                <p id="lf-date-hint" className="mt-1 text-xs text-muted">Dates use Toronto time.</p>
               </div>
             </div>
 
@@ -315,6 +317,7 @@ export function CreateLostFoundPage() {
                 Cancel
               </Link>
             </div>
+            </fieldset>
           </form>
         </div>
       </main>
