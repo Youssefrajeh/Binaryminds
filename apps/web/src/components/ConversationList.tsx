@@ -1,17 +1,18 @@
 import { Link } from "react-router";
-import type { ConversationDto, ConversationTab } from "@campushub/shared";
+import type { ConversationSummaryDto, ConversationTab } from "@campushub/shared";
 import { Avatar } from "./Avatar";
 import { formatListTime } from "../lib/format";
 
 interface ConversationListProps {
   tab: ConversationTab;
   onTabChange: (tab: ConversationTab) => void;
-  conversations: ConversationDto[];
+  conversations: ConversationSummaryDto[];
   loading: boolean;
   error: string;
   activeId?: string;
   meId?: string;
   requestCount: number;
+  onRetry?: () => void;
 }
 
 const tabClass = (active: boolean) =>
@@ -19,12 +20,12 @@ const tabClass = (active: boolean) =>
     active ? "bg-surface text-ink shadow-xs" : "text-ink-soft hover:text-ink"
   }`;
 
-function avatarFor(conversation: ConversationDto, meId?: string) {
+function avatarFor(conversation: ConversationSummaryDto, meId?: string) {
   if (conversation.type === "GROUP") return null;
   return conversation.members.find((m) => m.id !== meId)?.avatarUrl ?? null;
 }
 
-function preview(conversation: ConversationDto, meId?: string) {
+function preview(conversation: ConversationSummaryDto, meId?: string) {
   const last = conversation.lastMessage;
   if (!last) return conversation.type === "GROUP" ? "No messages yet" : "Say hello 👋";
   if (last.senderId === meId) return `You: ${last.text}`;
@@ -44,6 +45,7 @@ export function ConversationList({
   activeId,
   meId,
   requestCount,
+  onRetry,
 }: ConversationListProps) {
   return (
     <div className="flex h-full flex-col">
@@ -65,7 +67,7 @@ export function ConversationList({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {error && <div className="alert-error m-4">{error}</div>}
+        {error && <div role="alert" className="alert-error m-4">{error}{onRetry && <button type="button" onClick={onRetry} className="btn-secondary mt-2">Try again</button>}</div>}
 
         {loading && conversations.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted">Loading…</p>
@@ -108,6 +110,8 @@ export function ConversationList({
                           <span className="shrink-0 text-xs text-muted">{formatListTime(c.lastMessage.createdAt)}</span>
                         )}
                       </div>
+                      {c.event && <p className="mt-0.5 truncate text-xs font-medium text-brand">Event: {c.event.title}</p>}
+                      {c.listing && <p className="mt-0.5 truncate text-xs font-medium text-brand">Ad: {c.listing.title}</p>}
                       <div className="mt-0.5 flex items-center justify-between gap-2">
                         <p className={`truncate text-sm ${unread ? "text-ink" : "text-muted"}`}>{preview(c, meId)}</p>
                         {unread && (

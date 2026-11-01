@@ -1,88 +1,111 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import type { StudyGroupDto } from "@campushub/shared";
+import type { CreateStudyGroupInput, StudyGroupDto } from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
+import { apiErrorMessage } from "../lib/errors";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 export function StudyGroupsPage() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<StudyGroupDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState<StudyGroupDto | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [notice, setNotice] = useState("");
+  const loadVersion = useRef(0);
 
-  async function loadGroups() {
+  const loadGroups = useCallback(async () => {
+    const version = ++loadVersion.current;
+    setLoading(true);
     try {
-      const res = await api.get<StudyGroupDto[]>("/study-groups");
+      const res = await api.get<StudyGroupDto[]>("/study-groups", { params: page > 1 ? { page } : {} });
+      if (version !== loadVersion.current) return;
+      if (res.data.length === 0 && page > 1) {
+        setPage((value) => value - 1);
+        return;
+      }
       setGroups(res.data);
+      setHasMore(res.headers?.["x-has-more"] === "true");
       setError("");
     } catch {
-      setError("Failed to load study groups");
+      if (version === loadVersion.current) setError("Failed to load study groups");
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
-  }
+  }, [page]);
 
   useEffect(() => {
-    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
+    // Start a new fetch on initial mount or when the selected page changes.
     // oxlint-disable-next-line react/set-state-in-effect
     loadGroups();
-  }, []);
+    return () => { loadVersion.current += 1; };
+  }, [loadGroups]);
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    setError("");
+    if (creating) return;
+    setFormError("");
+    const input: CreateStudyGroupInput = { name: name.trim(), courseCode: courseCode.trim(), description: description.trim() };
+    if (!input.name || !input.courseCode || !input.description) {
+      setFormError("Group name, course code and description are required.");
+      return;
+    }
     setCreating(true);
     try {
-      const res = await api.post<StudyGroupDto>("/study-groups", {
-        name: name.trim(),
-        courseCode: courseCode.trim(),
-        description: description.trim() || null,
-      });
-      setGroups((list) => [res.data, ...list]);
+      const res = await api.post<StudyGroupDto>("/study-groups", input);
+      if (page === 1) {
+        setGroups((list) => [res.data, ...list].slice(0, 20));
+        if (groups.length >= 20) setHasMore(true);
+      } else {
+        setLoading(true);
+        setPage(1);
+      }
+      setError("");
+      setNotice("Study group created. You are its first member and the group chat is ready.");
       setName("");
       setCourseCode("");
       setDescription("");
       setShowForm(false);
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to create study group");
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Failed to create study group"));
     } finally {
       setCreating(false);
     }
   }
 
   async function handleJoin(group: StudyGroupDto) {
+    if (busyId !== null) return;
     setBusyId(group.id);
     setError("");
     try {
-      const res = await api.post<{ conversationId: string }>(`/study-groups/${group.id}/join`);
-      navigate(`/messages/${res.data.conversationId}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to join study group");
-      setBusyId(null);
-    }
+      await api.post(`/study-groups/${group.id}/join`);
+      navigate(`/study-groups/${group.id}`);
+    } catch (err) { setError(apiErrorMessage(err, "Failed to join study group")); }
+    finally { setBusyId(null); }
   }
 
   async function handleLeave(group: StudyGroupDto) {
-    const last = group.memberCount === 1;
-    const prompt = last
-      ? `You're the last member of ${group.name}. Leaving deletes the group and its chat. Continue?`
-      : `Leave ${group.name}? You'll also leave its group chat.`;
-    if (!window.confirm(prompt)) return;
-
+    if (busyId !== null) return;
     setBusyId(group.id);
     setError("");
     try {
       await api.post(`/study-groups/${group.id}/leave`);
+      setLeaving(null);
+      setNotice("You left the study group and its chat.");
       await loadGroups();
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to leave study group");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Failed to leave study group"));
     } finally {
       setBusyId(null);
     }
@@ -99,15 +122,22 @@ export function StudyGroupsPage() {
               Join a group for your course. Every group has its own chat.
             </p>
           </div>
-          <button type="button" onClick={() => setShowForm((v) => !v)} className="btn-primary shrink-0">
+          <button type="button" onClick={() => { setShowForm((v) => !v); setFormError(""); setNotice(""); }} disabled={creating || loading || busyId !== null} aria-expanded={showForm} aria-controls="create-study-group" className="btn-primary shrink-0">
             {showForm ? "Cancel" : "New group"}
           </button>
         </div>
 
-        {error && <div className="alert-error mt-6">{error}</div>}
+        {notice && <div role="status" className="alert-success mt-6">{notice}</div>}
+        {error && !leaving && <div role="alert" className="alert-error mt-6 flex flex-wrap items-center justify-between gap-3">
+          <span>{error}</span>
+          <button type="button" className="btn-secondary" disabled={loading} onClick={() => { setLoading(true); loadGroups(); }}>Try again</button>
+        </div>}
 
         {showForm && (
-          <form onSubmit={handleCreate} className="mt-6 space-y-4 rounded-2xl border border-line bg-surface p-6 shadow-sm">
+          <form id="create-study-group" aria-label="Create study group" onSubmit={handleCreate} className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-sm">
+            <fieldset disabled={creating} className="space-y-4">
+            <h2 className="text-lg font-semibold text-ink">Create study group</h2>
+            {formError && <p role="alert" className="alert-error">{formError}</p>}
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="group-course" className="field-label">
@@ -116,8 +146,9 @@ export function StudyGroupsPage() {
                 <input
                   id="group-course"
                   required
-                  maxLength={20}
-                  placeholder="e.g. INFO5103"
+                  minLength={2}
+                  maxLength={30}
+                  placeholder="e.g. INFO-5103"
                   value={courseCode}
                   onChange={(e) => setCourseCode(e.target.value)}
                   className="field-input uppercase"
@@ -140,12 +171,14 @@ export function StudyGroupsPage() {
             </div>
             <div>
               <label htmlFor="group-description" className="field-label">
-                Description
+                Description *
               </label>
               <textarea
                 id="group-description"
+                required
                 rows={2}
                 maxLength={300}
+                placeholder="What will your group study, and who should join?"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="field-input resize-none"
@@ -154,13 +187,14 @@ export function StudyGroupsPage() {
             <button type="submit" disabled={creating} className="btn-primary px-6">
               {creating ? "Creating…" : "Create group"}
             </button>
+            </fieldset>
           </form>
         )}
 
         <div className="mt-6 space-y-3">
           {loading ? (
             <p className="py-8 text-center text-sm text-muted">Loading study groups…</p>
-          ) : groups.length === 0 ? (
+          ) : groups.length === 0 && !error ? (
             <p className="rounded-2xl border border-dashed border-line py-10 text-center text-sm text-muted">
               No study groups yet. Create the first one for your course.
             </p>
@@ -170,13 +204,14 @@ export function StudyGroupsPage() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-brand">{group.courseCode}</p>
-                    <h2 className="mt-0.5 truncate text-base font-semibold text-ink">{group.name}</h2>
-                    {group.description && <p className="mt-1 text-sm text-ink-soft">{group.description}</p>}
+                    <h2 className="mt-0.5 break-words text-base font-semibold text-ink"><Link to={`/study-groups/${group.id}`} className="hover:text-brand hover:underline">{group.name}</Link></h2>
+                    {group.description && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink-soft">{group.description}</p>}
                     <p className="mt-1 text-xs text-muted">
                       {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Link to={`/study-groups/${group.id}`} className="btn-secondary">View details &amp; members</Link>
                     {group.isMember ? (
                       <>
                         {group.conversationId && (
@@ -184,12 +219,12 @@ export function StudyGroupsPage() {
                             Open chat
                           </Link>
                         )}
-                        <button type="button" onClick={() => handleLeave(group)} disabled={busyId === group.id} className="btn-secondary">
+                        <button type="button" onClick={() => { setError(""); setLeaving(group); }} disabled={busyId !== null || creating} className="btn-secondary">
                           Leave
                         </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => handleJoin(group)} disabled={busyId === group.id} className="btn-primary">
+                      <button type="button" onClick={() => handleJoin(group)} disabled={busyId !== null || creating} className="btn-primary">
                         {busyId === group.id ? "Joining…" : "Join"}
                       </button>
                     )}
@@ -199,7 +234,15 @@ export function StudyGroupsPage() {
             ))
           )}
         </div>
+        {!error && (page > 1 || hasMore) && <div className="mt-6 flex items-center justify-between gap-3">
+          <button type="button" className="btn-secondary" disabled={loading || creating || busyId !== null || page === 1} onClick={() => { setLoading(true); setPage((value) => value - 1); }}>Previous</button>
+          <span className="text-sm text-muted">Page {page}</span>
+          <button type="button" className="btn-secondary" disabled={loading || creating || busyId !== null || !hasMore} onClick={() => { setLoading(true); setPage((value) => value + 1); }}>Next</button>
+        </div>}
       </main>
+      <ConfirmDialog open={leaving !== null} title="Leave study group?" confirmLabel="Leave group" cancelLabel="Stay in group" busy={busyId !== null} error={error} onCancel={() => { setLeaving(null); setError(""); }} onConfirm={() => { if (leaving) handleLeave(leaving); }}>
+        {leaving?.memberCount === 1 ? "You are the last member. Leaving will delete this group and its chat." : "Leaving removes you from this group and its chat. If you are the last member, the group and chat are deleted."}
+      </ConfirmDialog>
     </div>
   );
 }

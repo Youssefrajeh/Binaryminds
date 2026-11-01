@@ -18,7 +18,12 @@ vi.mock("../lib/email.js", () => ({
 const prisma = prismaClient as unknown as PrismaMock;
 const app = createApp();
 
-const signup = { firstName: "Jane", lastName: "Doe", email: "a_student@fanshaweonline.ca", password: "Campus#2026" };
+const signup = {
+  firstName: "Jane",
+  lastName: "Doe",
+  email: "a_student@fanshaweonline.ca",
+  password: "Campus#2026",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -32,16 +37,22 @@ describe("POST /api/auth/register — Terms and Conditions", () => {
     ["false", { acceptTerms: false }],
     ["not a boolean", { acceptTerms: "yes" }],
   ])("rejects sign-up when acceptTerms is %s", async (_label, extra) => {
-    const res = await request(app).post("/api/auth/register").send({ ...signup, ...extra });
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...signup, ...extra });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe("You must accept the Terms and Conditions to sign up");
+    expect(res.body.error).toBe(
+      "You must accept the Terms and Conditions to sign up",
+    );
     expect(prisma.pendingRegistration.upsert).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("records when the terms were accepted", async () => {
-    const res = await request(app).post("/api/auth/register").send({ ...signup, acceptTerms: true });
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({ ...signup, acceptTerms: true });
 
     expect(res.status).toBe(201);
     const call = prisma.pendingRegistration.upsert.mock.calls[0][0];
@@ -55,7 +66,9 @@ describe("brute-force protection", () => {
   it("returns 429 after too many verification attempts for one email", async () => {
     let last = 0;
     for (let i = 0; i < 12; i++) {
-      const res = await request(app).post("/api/auth/verify").send({ email: "brute@fanshaweonline.ca", otp: "000000" });
+      const res = await request(app)
+        .post("/api/auth/verify")
+        .send({ email: "brute@fanshaweonline.ca", otp: "000000" });
       last = res.status;
     }
     expect(last).toBe(429);
@@ -66,7 +79,11 @@ describe("brute-force protection", () => {
     for (let i = 0; i < 12; i++) {
       const res = await request(app)
         .post("/api/auth/register")
-        .send({ email: "spam@fanshaweonline.ca", password: "x", acceptTerms: true });
+        .send({
+          email: "spam@fanshaweonline.ca",
+          password: "x",
+          acceptTerms: true,
+        });
       last = res.status;
     }
     expect(last).toBe(429);

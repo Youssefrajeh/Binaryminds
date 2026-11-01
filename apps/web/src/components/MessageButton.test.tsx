@@ -27,6 +27,13 @@ function renderButton(props: Partial<React.ComponentProps<typeof MessageButton>>
 }
 
 describe("MessageButton", () => {
+  it("opens the event chat with its event id", async () => {
+    post.mockResolvedValue({ data: { id: "event-chat" } });
+    renderButton({ recipientId: "organizer", eventId: "soccer", label: "Message organizer" });
+    fireEvent.click(screen.getByRole("button", { name: "Message organizer" }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/messages/event-chat"));
+    expect(post).toHaveBeenCalledWith("/conversations", { recipientId: "organizer", eventId: "soccer" });
+  });
   it("starts a conversation linked to the listing and opens it", async () => {
     post.mockResolvedValue({ data: { id: "c1" } });
     renderButton({ listingId: "l1" });

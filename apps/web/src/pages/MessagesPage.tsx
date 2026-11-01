@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import type {
   ConversationDto,
+  ConversationSummaryDto,
   ConversationTab,
   MessageDto,
 } from "@campushub/shared";
@@ -23,7 +24,7 @@ export function MessagesPage() {
   const meId = user?.id ?? "";
 
   const [tab, setTab] = useState<ConversationTab>("inbox");
-  const [conversations, setConversations] = useState<ConversationDto[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // The open chat may not be in the current list (a new DM, or a request while on Inbox)
@@ -35,6 +36,8 @@ export function MessagesPage() {
   if (tab !== shownTab) {
     setShownTab(tab);
     setLoading(true);
+    setError("");
+    setConversations([]);
   }
   const [shownConversationId, setShownConversationId] = useState(conversationId);
   if (conversationId !== shownConversationId) {
@@ -43,31 +46,39 @@ export function MessagesPage() {
     setActiveError("");
   }
   const requestTabShownFor = useRef<string | null>(null);
+  const listRequest = useRef(0);
+  const activeRequest = useRef(0);
   const conversationsRef = useRef(conversations);
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
 
   const loadList = useCallback(async () => {
+    const request = ++listRequest.current;
+    setLoading(true);
+    setError("");
     try {
-      const res = await api.get<ConversationDto[]>("/conversations", {
+      const res = await api.get<ConversationSummaryDto[]>("/conversations", {
         params: { tab },
       });
+      if (request !== listRequest.current) return;
       setConversations(res.data);
       setError("");
     } catch {
-      setError("Failed to load conversations");
+      if (request === listRequest.current) setError("Failed to load conversations");
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   }, [tab]);
 
   const loadActive = useCallback(async () => {
+    const request = ++activeRequest.current;
     if (!conversationId) return;
     try {
       const res = await api.get<ConversationDto>(
         `/conversations/${conversationId}`,
       );
+      if (request !== activeRequest.current) return;
       setActive(res.data);
       setActiveError("");
       // Opening a request from a link should show the Requests tab, once per chat
@@ -75,8 +86,12 @@ export function MessagesPage() {
       if (res.data.isRequest && requestTabShownFor.current !== res.data.id) {
         requestTabShownFor.current = res.data.id;
         setTab("requests");
+      } else if (res.data.status === "ACCEPTED" && requestTabShownFor.current === res.data.id) {
+        requestTabShownFor.current = null;
+        setTab("inbox");
       }
     } catch {
+      if (request !== activeRequest.current) return;
       setActive(null);
       setActiveError(
         "This conversation doesn't exist or you're no longer a member.",
@@ -109,7 +124,7 @@ export function MessagesPage() {
     // Fetches; state is only set after the request resolves (the rule cannot see past the await)
     // oxlint-disable-next-line react/set-state-in-effect
     loadList();
-  }, [loadList]);
+  }, [loadList, connected]);
 
   useEffect(() => {
     // Fetches; state is only set after the request resolves (the rule cannot see past the await)
@@ -153,7 +168,7 @@ export function MessagesPage() {
         if (index === -1) return list;
         const isOpen = message.conversationId === conversationId;
         const fromOther = message.senderId !== meId;
-        const updated: ConversationDto = {
+        const updated: ConversationSummaryDto = {
           ...list[index],
           lastMessage: {
             text: message.text,
@@ -180,22 +195,17 @@ export function MessagesPage() {
     }
 
     socket.on("message:new", onMessageNew);
-    socket.on("conversation:updated", loadList);
+    socket.on("conversation:updated", refreshAll);
+    socket.on("message:updated", refreshAll);
     socket.on("conversation:removed", onConversationRemoved);
 
     return () => {
       socket.off("message:new", onMessageNew);
-      socket.off("conversation:updated", loadList);
+      socket.off("conversation:updated", refreshAll);
+      socket.off("message:updated", refreshAll);
       socket.off("conversation:removed", onConversationRemoved);
     };
   }, [socket, conversationId, meId, loadList, loadActive, refreshAll]);
-
-  // After a reconnect, anything could have changed
-  useEffect(() => {
-    // Fetches; state is only set after the request resolves (the rule cannot see past the await)
-    // oxlint-disable-next-line react/set-state-in-effect
-    if (connected) loadList();
-  }, [connected, loadList]);
 
   const handleRead = useCallback(
     (readId: string) => {
@@ -224,6 +234,7 @@ export function MessagesPage() {
               activeId={conversationId}
               meId={meId}
               requestCount={requestCount}
+              onRetry={loadList}
             />
           </aside>
 

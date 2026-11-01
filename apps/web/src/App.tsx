@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { AuthProvider } from "./context/AuthProvider";
 import { SocketProvider } from "./context/SocketProvider";
@@ -11,7 +12,6 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { EditProfilePage } from "./pages/EditProfilePage";
-import { MessagesPage } from "./pages/MessagesPage";
 import { PublicProfilePage } from "./pages/PublicProfilePage";
 import { MembersPage } from "./pages/MembersPage";
 import { StudyGroupsPage } from "./pages/StudyGroupsPage";
@@ -23,7 +23,14 @@ import { ListingDetailsPage } from "./pages/ListingDetailsPage";
 import { LostFoundPage } from "./pages/LostFoundPage";
 import { CreateLostFoundPage } from "./pages/CreateLostFoundPage";
 import { EventsPage } from "./pages/EventsPage";
-import { EventFormPage } from "./pages/EventFormPage";
+import { RoleRoute } from "./components/RoleRoute";
+
+const EventFormPage = lazy(() => import("./pages/EventFormPage").then((module) => ({ default: module.EventFormPage })));
+const MessagesPage = lazy(() => import("./pages/MessagesPage").then((module) => ({ default: module.MessagesPage })));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
+const AdminReportsPage = lazy(() => import("./pages/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
+const EventManagementPage = lazy(() => import("./pages/EventManagementPage").then((module) => ({ default: module.EventManagementPage })));
+const StudyGroupDetailsPage = lazy(() => import("./pages/StudyGroupDetailsPage").then((module) => ({ default: module.StudyGroupDetailsPage })));
 
 function App() {
   return (
@@ -31,7 +38,12 @@ function App() {
       <ScrollToTop />
       <AuthProvider>
         <SocketProvider>
+          <Suspense fallback={<p role="status" className="min-h-screen bg-canvas p-10 text-center text-ink-soft">Loading page...</p>}>
           <Routes>
+            <Route path="/admin/users" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminUsersPage /></RoleRoute>} />
+            <Route path="/admin/reports" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminReportsPage /></RoleRoute>} />
+            <Route path="/events/manage" element={<RoleRoute roles={["ORGANIZER", "ADMINISTRATOR"]}><EventManagementPage /></RoleRoute>} />
+            <Route path="/study-groups/:id" element={<ProtectedRoute><StudyGroupDetailsPage /></ProtectedRoute>} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/verify" element={<VerifyPage />} />
@@ -169,6 +181,7 @@ function App() {
               }
             />
           </Routes>
+          </Suspense>
         </SocketProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run build -w @campushub/shared",
+    "prebuild": "npm run build -w @campushub/shared",
+    "pretest": "npm run build -w @campushub/shared",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc -p tsconfig.build.json && npm run build -w @campushub/web",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "admin:bootstrap": "tsx --env-file=.env prisma/bootstrap-admin.ts"
   },
   "dependencies": {
     "@campushub/shared": "*",
@@ -29,6 +33,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.7.5",
     "@types/supertest": "^7.2.1",
+    "mongodb-memory-server-core": "^11.3.0",
     "prisma": "^5.20.0",
     "socket.io-client": "^4.8.4",
     "supertest": "^7.3.0",

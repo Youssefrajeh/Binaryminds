@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useContentRemoval } from "../lib/useContentRemoval";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
+import { ReportButton } from "../components/ReportButton";
 import { StatusBadge } from "../components/StatusBadge";
+import { MessageButton } from "../components/MessageButton";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../lib/errors";
 import {
@@ -10,6 +13,7 @@ import {
   LOST_FOUND_CATEGORIES,
   resolveLostFoundPost,
   type LostFoundKind,
+  type LostFoundCategory,
   type LostFoundPost,
 } from "../services/lostFoundService";
 
@@ -26,9 +30,11 @@ function formatDate(iso: string) {
 export function LostFoundPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<LostFoundPost[]>([]);
+  const removePost = useCallback((id: string) => setPosts((current) => current.filter((post) => post.id !== id)), []);
+  useContentRemoval("LOST_FOUND_POST", removePost);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<LostFoundKind | "">("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState<LostFoundCategory | "">("");
   const [location, setLocation] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -38,6 +44,9 @@ export function LostFoundPage() {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // Retry the failed page rather than skipping it when Load more fails.
+  const [loadedPage, setLoadedPage] = useState(0);
 
   const rangeInvalid = from !== "" && to !== "" && from > to;
   // An invalid date range is shown straight from the inputs; nothing is fetched
@@ -50,6 +59,10 @@ export function LostFoundPage() {
     return (e: { target: { value: string } }) => {
       setter(e.target.value as T);
       setPage(1);
+      setLoadedPage(0);
+      setFetching(true);
+      setLoadError("");
+      setHasMore(false);
     };
   }
 
@@ -61,6 +74,10 @@ export function LostFoundPage() {
     setFrom("");
     setTo("");
     setPage(1);
+    setLoadedPage(0);
+    setFetching(true);
+    setLoadError("");
+    setHasMore(false);
   }
 
   useEffect(() => {
@@ -86,7 +103,13 @@ export function LostFoundPage() {
         });
         if (stale) return;
         setHasMore(result.hasMore);
-        setPosts((current) => (page > 1 ? [...current, ...result.posts] : result.posts));
+        setPosts((current) => {
+          if (page === 1) return result.posts;
+          // A new report may shift offset pages while the student is browsing.
+          const ids = new Set(current.map((post) => post.id));
+          return [...current, ...result.posts.filter((post) => !ids.has(post.id))];
+        });
+        setLoadedPage(page);
       } catch (err) {
         if (!stale) setLoadError(apiErrorMessage(err, "Failed to load lost & found posts."));
       } finally {
@@ -100,7 +123,7 @@ export function LostFoundPage() {
       stale = true;
       clearTimeout(timer);
     };
-  }, [search, kind, category, location, from, to, page, rangeInvalid]);
+  }, [search, kind, category, location, from, to, page, rangeInvalid, reloadKey]);
 
   async function handleResolve(id: string) {
     setActionError("");
@@ -146,6 +169,7 @@ export function LostFoundPage() {
               <input
                 id="lf-search"
                 type="search"
+                maxLength={100}
                 placeholder="Keywords, e.g. wallet"
                 className="field-input"
                 value={search}
@@ -172,7 +196,7 @@ export function LostFoundPage() {
                 id="lf-filter-category"
                 className="field-input"
                 value={category}
-                onChange={onFilter(setCategory)}
+                onChange={onFilter<LostFoundCategory | "">(setCategory)}
               >
                 <option value="">All categories</option>
                 {LOST_FOUND_CATEGORIES.map((c) => (
@@ -190,6 +214,7 @@ export function LostFoundPage() {
               <input
                 id="lf-filter-location"
                 type="text"
+                maxLength={120}
                 placeholder="e.g. Library"
                 className="field-input"
                 value={location}
@@ -241,6 +266,11 @@ export function LostFoundPage() {
         {error && (
           <div role="alert" className="alert-error mt-8">
             {error}
+            {!rangeInvalid && (
+              <button type="button" className="btn-secondary ml-3" onClick={() => setReloadKey((key) => key + 1)}>
+                Try again
+              </button>
+            )}
           </div>
         )}
         {actionError && (
@@ -273,7 +303,7 @@ export function LostFoundPage() {
           </div>
         )}
 
-        {!error && posts.length > 0 && !(loading && page === 1) && (
+        {posts.length > 0 && !rangeInvalid && !(loading && page === 1) && (!error || page > 1) && (
           <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {posts.map((post) => {
               const isOwner = user?.id === post.authorId;
@@ -287,6 +317,7 @@ export function LostFoundPage() {
                     <img
                       src={post.imageUrl}
                       alt={post.title}
+                      loading="lazy"
                       className={`aspect-[4/3] w-full object-cover ${resolved ? "opacity-60" : ""}`}
                     />
                   ) : (
@@ -305,16 +336,24 @@ export function LostFoundPage() {
                       </StatusBadge>
                     </div>
 
-                    <h2 className="mt-3 text-lg font-semibold text-ink">{post.title}</h2>
+                    <h2 className="mt-3 break-words text-lg font-semibold text-ink">{post.title}</h2>
                     <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted">
                       {categoryLabel(post.category)}
                     </p>
-                    <p className="mt-2 line-clamp-3 text-sm text-ink-soft">{post.description}</p>
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink-soft">{post.description}</p>
 
                     <dl className="mt-4 space-y-1 text-sm text-ink-soft">
                       <div className="flex gap-1.5">
                         <dt className="font-medium text-ink">Where:</dt>
-                        <dd>{post.location}</dd>
+                        <dd className="min-w-0 break-words">{post.location}</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-medium text-ink">Posted by:</dt>
+                        <dd className="min-w-0 break-words">
+                          <Link to={isOwner ? "/profile" : `/u/${post.authorId}`} className="link">
+                            {isOwner ? "You" : post.author?.profile?.displayName || "CampusHub student"}
+                          </Link>
+                        </dd>
                       </div>
                       <div className="flex gap-1.5">
                         <dt className="font-medium text-ink">When:</dt>
@@ -323,12 +362,16 @@ export function LostFoundPage() {
                     </dl>
 
                     <div className="mt-auto flex flex-wrap items-center gap-3 pt-5">
+                      <ReportButton targetType="LOST_FOUND_POST" targetId={post.id} ownerId={post.authorId} label={`Report post: ${post.title}`} />
+                      {!isOwner && !resolved && (
+                        <MessageButton recipientId={post.authorId} label="Message poster" className="btn-secondary" />
+                      )}
                       {isOwner && !resolved && (
                         <button
                           type="button"
                           className="btn-secondary"
                           onClick={() => handleResolve(post.id)}
-                          disabled={resolvingId === post.id}
+                          disabled={resolvingId !== null}
                         >
                           {resolvingId === post.id ? "Saving..." : "Mark as Resolved"}
                         </button>
@@ -345,7 +388,10 @@ export function LostFoundPage() {
           <div className="mt-8 flex justify-center">
             <button
               type="button"
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => {
+                setFetching(true);
+                setPage(loadedPage + 1);
+              }}
               className="btn-secondary px-6"
               disabled={loading}
             >

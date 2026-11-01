@@ -49,19 +49,22 @@ export type ListingInput = {
   images: { url: string }[];
 };
 
-// The unfiltered first page is cached so returning to the marketplace is
-// instant; any change to a listing clears it so stale data never shows.
+// Keep quick back-navigation without retaining other users' edits indefinitely.
+const CACHE_TTL_MS = 30_000;
+let cachedAt = 0;
 let firstPageCache: { listings: Listing[]; hasMore: boolean } | null = null;
 
 export function getCachedFirstPage() {
+  if (Date.now() - cachedAt >= CACHE_TTL_MS) clearCache();
   return firstPageCache;
 }
 
 export function setCachedFirstPage(value: { listings: Listing[]; hasMore: boolean }) {
   firstPageCache = value;
+  cachedAt = Date.now();
 }
 
-function clearCache() {
+export function clearCache() {
   firstPageCache = null;
 }
 

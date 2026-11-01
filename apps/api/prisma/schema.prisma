@@ -35,6 +35,16 @@ enum LostFoundStatus {
   RESOLVED
 }
 
+enum LostFoundCategory {
+  ELECTRONICS
+  ID_CARDS
+  KEYS
+  CLOTHING
+  BAGS
+  BOOKS
+  OTHER
+}
+
 enum EventStatus {
   DRAFT
   PUBLISHED
@@ -57,10 +67,12 @@ enum ReportTargetType {
   EVENT
   USER
   MESSAGE
+  FILE
 }
 
 enum ReportStatus {
   OPEN
+  RESOLVED
   ACTIONED
   DISMISSED
 }
@@ -88,6 +100,9 @@ model User {
   studyGroups        StudyGroupMember[]
   reportsFiled       Report[]           @relation("ReportReporter")
   moderationActions  ModerationAction[] @relation("ModerationAdmin")
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([role, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model PendingRegistration {
@@ -111,6 +126,11 @@ model Profile {
   bio         String?
   avatarUrl   String?
   interests   String[]
+  courses     String[] @default([])
+
+  @@index([program])
+  @@index([courses])
+  @@index([interests])
 }
 
 model Category {
@@ -158,12 +178,15 @@ model Conversation {
   studyGroupId  String?
   status        ConversationStatus @default(PENDING)
   requestedById String?
-  // DIRECT: sorted "userA_userB"; GROUP: "group:<studyGroupId>". Never null, so the
+  // DIRECT keys include their context: direct:<pair>, listing:<id>:<pair>, or event:<id>:<pair>.
+  // Older DMs use a sorted "userA_userB" pair; GROUP uses "group:<studyGroupId>". Never null, so the
   // unique index also prevents duplicate DMs (MongoDB unique indexes treat nulls as equal).
   directKey     String             @unique
   lastMessage   LastMessage?
   listingId     String?
   listing       Listing?           @relation(fields: [listingId], references: [id])
+  eventId       String?
+  event         Event?             @relation(fields: [eventId], references: [id])
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -204,6 +227,7 @@ model Message {
   attachments    Attachment[]
   clientId       String?
   createdAt      DateTime     @default(now())
+  removedAt      DateTime?
 
   @@index([conversationId, createdAt(sort: Desc)])
 }
@@ -223,8 +247,11 @@ model StudyGroup {
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+  membershipVersion Int? @default(0)
 
   members StudyGroupMember[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model StudyGroupMember {
@@ -237,6 +264,7 @@ model StudyGroupMember {
 
   @@unique([studyGroupId, userId])
   @@index([userId])
+  @@index([studyGroupId, joinedAt, id])
 }
 
 model LostFoundPost {
@@ -246,11 +274,18 @@ model LostFoundPost {
   kind        LostFoundKind
   title       String
   description String
+  // Nullable for reports created before categories existed; new posts require it in the API.
+  category    LostFoundCategory? @default(OTHER)
   location    String
   occurredOn  DateTime
   imageUrl    String?
   status      LostFoundStatus @default(OPEN)
   createdAt   DateTime        @default(now())
+  removedAt   DateTime?
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([category, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([occurredOn])
 }
 
 model Event {
@@ -260,12 +295,18 @@ model Event {
   title       String
   description String
   startsAt    DateTime
-  endsAt      DateTime
+  endsAt      DateTime?
+  // Calendar date selected by the organizer; it can exist without an end time.
+  endDate     String?
   location    String
   imageUrl    String?
   status      EventStatus @default(DRAFT)
 
   rsvps Rsvp[]
+  conversations Conversation[]
+
+  @@index([status, startsAt, id])
+  @@index([organizerId, startsAt(sort: Desc), id(sort: Desc)])
 }
 
 model Rsvp {
@@ -277,6 +318,7 @@ model Rsvp {
   respondedAt DateTime @default(now())
 
   @@unique([eventId, userId])
+  @@index([userId, eventId])
 }
 
 model Report {
@@ -286,10 +328,17 @@ model Report {
   targetType ReportTargetType
   targetId   String
   reason     String
+  note       String?
+  snapshot   Json?
+  fileKey    String?
   status     ReportStatus     @default(OPEN)
   createdAt  DateTime         @default(now())
+  resolvedAt DateTime?
 
   moderationActions ModerationAction[]
+
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([reporterId, targetType, targetId, status])
 }
 
 model ModerationAction {

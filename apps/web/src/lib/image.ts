@@ -1,7 +1,9 @@
+import { MAX_LOST_FOUND_PHOTO_BYTES } from "@campushub/shared";
+
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 // Post photos are stored as data URLs, so they share the listing photo limit
-const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const MAX_PHOTO_BYTES = MAX_LOST_FOUND_PHOTO_BYTES;
 
 /** Why a post photo can't be uploaded, or null when it is fine */
 export function photoError(file: File): string | null {

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useContentRemoval } from "../lib/useContentRemoval";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
@@ -21,9 +22,12 @@ export function MarketplacePage() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [page, setPage] = useState(1);
+  const [mine, setMine] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [fetching, setLoading] = useState(() => getCachedFirstPage() === null);
   const [loadError, setError] = useState("");
+  const removeListing = useCallback((id: string) => setListings((current) => current.filter((listing) => listing.id !== id)), []);
+  useContentRemoval("LISTING", removeListing);
 
   const priceInvalid =
     minPrice !== "" && maxPrice !== "" && Number(minPrice) > Number(maxPrice);
@@ -58,9 +62,10 @@ export function MarketplacePage() {
   useEffect(() => {
     const trimmedSearch = search.trim();
     const unfiltered =
-      !trimmedSearch && !categoryId && !condition && !minPrice && !maxPrice;
+      !trimmedSearch && !categoryId && !condition && !minPrice && !maxPrice && !mine;
 
     if (priceInvalid) return;
+    let stale = false;
 
     // If there is no filter and we already have the first page cached,
     // show it immediately without making another API request.
@@ -88,9 +93,11 @@ export function MarketplacePage() {
             ...(minPrice ? { minPrice } : {}),
             ...(maxPrice ? { maxPrice } : {}),
             ...(page > 1 ? { page } : {}),
+            ...(mine ? { mine: "true" } : {}),
           },
         });
 
+        if (stale) return;
         const more = response.headers?.["x-has-more"] === "true";
         setHasMore(more);
         setListings((current) =>
@@ -102,13 +109,14 @@ export function MarketplacePage() {
           setCachedFirstPage({ listings: response.data, hasMore: more });
         }
       } catch (err: any) {
+        if (stale) return;
         console.error("Failed to load listings:", err);
 
         setError(
           err.response?.data?.error || "Failed to load marketplace listings.",
         );
       } finally {
-        setLoading(false);
+        if (!stale) setLoading(false);
       }
     }
 
@@ -118,19 +126,20 @@ export function MarketplacePage() {
         loadListings();
       }, 300);
 
-      return () => clearTimeout(timer);
+      return () => { stale = true; clearTimeout(timer); };
     }
 
     // Initial Marketplace load happens immediately.
     loadListings();
-  }, [search, categoryId, condition, minPrice, maxPrice, page, priceInvalid]);
+    return () => { stale = true; };
+  }, [search, categoryId, condition, minPrice, maxPrice, page, priceInvalid, mine]);
 
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
-        <div className="mb-8 flex items-center justify-between gap-6">
+        <div className="mb-8 flex flex-col gap-6">
           <div>
             <h1 className="text-4xl font-bold">Marketplace</h1>
             <p className="mt-2 text-lg text-muted">
@@ -138,19 +147,22 @@ export function MarketplacePage() {
             </p>
           </div>
 
-          <div className="flex flex-1 justify-center">
+          <label className="flex w-fit items-center gap-2 text-sm font-medium text-ink"><input type="checkbox" className="h-4 w-4 accent-brand" checked={mine} onChange={(e) => { setMine(e.target.checked); setPage(1); }} />My listings</label>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_1fr_1fr_7rem_7rem]">
             <input
               type="text"
+              aria-label="Search listings"
               value={search}
               onChange={onFilter(setSearch)}
               placeholder="Search listings..."
-              className="w-full max-w-md rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
+              className="field-input min-w-0"
             />
 
             <select
+              aria-label="Category"
               value={categoryId}
               onChange={onFilter(setCategoryId)}
-              className="rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
+              className="field-input min-w-0"
             >
               <option value="">All categories</option>
 
@@ -162,9 +174,10 @@ export function MarketplacePage() {
             </select>
 
             <select
+              aria-label="Condition"
               value={condition}
               onChange={onFilter(setCondition)}
-              className="rounded-lg border border-line bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-primary"
+              className="field-input min-w-0"
             >
               <option value="">All conditions</option>
               <option value="NEW">New</option>
@@ -183,7 +196,7 @@ export function MarketplacePage() {
               onChange={onFilter(setMinPrice)}
               placeholder="Min $"
               aria-label="Minimum price"
-              className="w-24 rounded-lg border border-line bg-surface px-3 py-3 outline-none focus:ring-2 focus:ring-primary"
+              className="field-input min-w-0"
             />
 
             <input
@@ -195,13 +208,13 @@ export function MarketplacePage() {
               onChange={onFilter(setMaxPrice)}
               placeholder="Max $"
               aria-label="Maximum price"
-              className="w-24 rounded-lg border border-line bg-surface px-3 py-3 outline-none focus:ring-2 focus:ring-primary"
+              className="field-input min-w-0"
             />
           </div>
 
           <Link
             to="/marketplace/new"
-            className="btn-primary whitespace-nowrap px-6"
+            className="btn-primary w-fit whitespace-nowrap px-6"
           >
             + Post a Listing
           </Link>

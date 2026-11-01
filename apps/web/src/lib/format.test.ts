@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { formatDayLabel, formatListTime, formatMessageTime, newClientId } from "./format";
+import { formatDayLabel, formatListTime, formatMessageTime, newClientId, formatEventDate, formatEventDateRange, formatTimeRange } from "./format";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+describe("optional event ending", () => {
+  const start = "2099-01-01T18:00:00";
+  it("shows only a start time if no end time was supplied", () => {
+    expect(formatTimeRange(start, null)).not.toContain("–");
+    expect(formatTimeRange(start, null)).not.toContain("Invalid");
+  });
+  it("shows a calendar date range without requiring an end time", () => {
+    expect(formatEventDateRange(start, "2099-01-20", null)).toBe(`${formatEventDate(start)} – ${formatEventDate("2099-01-20T12:00:00")}`);
+    expect(formatEventDateRange(start, "2099-01-01", null)).toBe(formatEventDate(start));
+  });
+  it("uses the viewer's local ending day when an end timestamp exists", () => {
+    const end = "2099-01-20T00:30:00Z";
+    expect(formatEventDateRange(start, "2099-01-21", end)).toBe(`${formatEventDate(start)} – ${formatEventDate(end)}`);
+  });
+});
 
 describe("formatDayLabel", () => {
   it("says Today and Yesterday", () => {

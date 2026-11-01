@@ -299,6 +299,7 @@ authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
         emailVerifiedAt: new Date(),
         termsAcceptedAt: pending.termsAcceptedAt,
         status: "ACTIVE",
+        role: "STUDENT",
         ...(fullName ? { profile: { create: { displayName: fullName, interests: [] } } } : {}),
       },
       include: { profile: true },

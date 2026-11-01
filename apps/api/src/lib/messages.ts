@@ -1,7 +1,6 @@
 import { z } from "zod";
-import type { Conversation, Message } from "@prisma/client";
+import { Prisma, type Conversation, type Message } from "@prisma/client";
 import { prisma } from "./prisma.js";
-import { findMembership } from "./conversations.js";
 
 export const MAX_MESSAGE_LENGTH = 2000;
 export const MAX_PENDING_MESSAGES = 3;
@@ -13,8 +12,6 @@ export const sendMessageSchema = z.object({
   attachments: z.array(z.unknown()).max(0, "Attachments are not supported yet").optional(),
   clientId: z.string().min(1).max(64).optional(),
 });
-
-export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
 export class MessageError extends Error {}
 
@@ -43,58 +40,72 @@ export async function sendMessage(senderId: string, input: unknown): Promise<Sen
     throw new MessageError("Message cannot be empty");
   }
 
-  const membership = await findMembership(conversationId, senderId);
-  if (!membership) {
-    throw new MessageError("Conversation not found");
-  }
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await prisma.$transaction(async (db) => {
+        const participant = await db.participant.findUnique({ where: { conversationId_userId: { conversationId, userId: senderId } }, include: { conversation: true } });
+        if (!participant) {
+          throw new MessageError("Conversation not found");
+        }
 
-  const participants = await prisma.participant.findMany({ where: { conversationId } });
-  if (participants.some((p) => p.blockedAt)) {
-    throw new MessageError("This conversation is blocked");
-  }
+        const participants = await db.participant.findMany({ where: { conversationId } });
+        if (participants.some((p) => p.blockedAt)) {
+          throw new MessageError("This conversation is blocked");
+        }
 
-  if (clientId) {
-    const existing = await prisma.message.findFirst({ where: { conversationId, senderId, clientId } });
-    if (existing) {
-      return {
-        message: existing,
-        conversation: membership.conversation,
-        memberIds: participants.map((p) => p.userId),
-        accepted: false,
-      };
+        if (clientId) {
+          const existing = await db.message.findFirst({ where: { conversationId, senderId, clientId } });
+          if (existing) {
+            return {
+              message: existing,
+              conversation: participant.conversation,
+              memberIds: participants.map((p) => p.userId),
+              accepted: false,
+            };
+          }
+        }
+
+        const before = participant.conversation;
+
+        const pending = before.type === "DIRECT" && before.status === "PENDING";
+        const first = pending && !before.lastMessage ? await db.message.findFirst({ where: { conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }) : null;
+        const requester = before.lastMessage ? before.requestedById : first?.senderId ?? senderId;
+
+        // Until the recipient accepts, a requester may only send a few opening messages
+        if (pending && requester === senderId) {
+          const sent = await db.message.count({ where: { conversationId, senderId } });
+          if (sent >= MAX_PENDING_MESSAGES) {
+            throw new MessageError("Wait for them to accept your request before sending more messages");
+          }
+        }
+
+        // Replying to a request accepts it
+        const accepted = pending && Boolean(before.lastMessage || first) && requester !== senderId;
+
+        const message = await db.message.create({
+          data: { conversationId, senderId, text, attachments: [], clientId: clientId ?? null },
+        });
+
+        const conversation = await db.conversation.update({
+          where: { id: conversationId },
+          data: {
+            lastMessage: { text: text.slice(0, 200), senderId, createdAt: message.createdAt },
+            ...(pending && !before.lastMessage ? { requestedById: requester } : {}),
+            ...(accepted ? { status: "ACCEPTED" as const } : {}),
+          },
+        });
+
+        // Your own message counts as read up to now
+        await db.participant.update({
+          where: { id: participant.id },
+          data: { lastReadAt: message.createdAt, ignoredAt: null },
+        });
+
+        return { message, conversation, memberIds: participants.map((p) => p.userId), accepted };
+      });
+    } catch (err) {
+      if (attempt < 2 && err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") continue;
+      throw err;
     }
   }
-
-  const { conversation: before } = membership;
-
-  // Until the recipient accepts, a requester may only send a few opening messages
-  if (before.type === "DIRECT" && before.status === "PENDING" && before.requestedById === senderId) {
-    const sent = await prisma.message.count({ where: { conversationId, senderId } });
-    if (sent >= MAX_PENDING_MESSAGES) {
-      throw new MessageError("Wait for them to accept your request before sending more messages");
-    }
-  }
-
-  // Replying to a request accepts it
-  const accepted = before.type === "DIRECT" && before.status === "PENDING" && before.requestedById !== senderId;
-
-  const message = await prisma.message.create({
-    data: { conversationId, senderId, text, attachments: [], clientId: clientId ?? null },
-  });
-
-  const conversation = await prisma.conversation.update({
-    where: { id: conversationId },
-    data: {
-      lastMessage: { text: text.slice(0, 200), senderId, createdAt: message.createdAt },
-      ...(accepted ? { status: "ACCEPTED" as const } : {}),
-    },
-  });
-
-  // Your own message counts as read up to now
-  await prisma.participant.update({
-    where: { id: membership.participant.id },
-    data: { lastReadAt: message.createdAt, ignoredAt: null },
-  });
-
-  return { message, conversation, memberIds: participants.map((p) => p.userId), accepted };
 }

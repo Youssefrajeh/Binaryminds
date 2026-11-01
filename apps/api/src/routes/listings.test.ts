@@ -48,12 +48,12 @@ describe("GET /api/listings/categories", () => {
 });
 
 describe("GET /api/listings", () => {
-  it("only returns ACTIVE listings with no filters", async () => {
+  it("returns active and sold listings while excluding removed ones", async () => {
     prisma.listing.findMany.mockResolvedValue([]);
     const res = await request(app).get("/api/listings").set("Authorization", auth);
     expect(res.status).toBe(200);
     const call = prisma.listing.findMany.mock.calls.find((c) => c[0]?.where);
-    expect(call?.[0].where).toEqual({ status: "ACTIVE" });
+    expect(call?.[0].where).toEqual({ status: { in: ["ACTIVE", "SOLD"] } });
   });
 
   it("applies search, category and condition filters", async () => {
@@ -113,8 +113,8 @@ describe("GET /api/listings/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 404 for sold listings", async () => {
-    prisma.listing.findUnique.mockResolvedValue({ id: "l1", status: "SOLD" });
+  it("returns 404 for removed listings", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", status: "REMOVED" });
     const res = await request(app).get("/api/listings/l1").set("Authorization", auth);
     expect(res.status).toBe(404);
   });
@@ -194,5 +194,48 @@ describe("root routing", () => {
     const res = await request(app).get("/study-groups");
     // Served by the SPA fallback (200) or missing (404) -- never the API's 401
     expect(res.status).not.toBe(401);
+  });
+});
+
+describe("listing owner management", () => {
+  it("restricts My listings to the authenticated seller", async () => {
+    prisma.listing.findMany.mockResolvedValue([]);
+    await request(app).get("/api/listings?mine=true").set("Authorization", auth);
+    expect(prisma.listing.findMany.mock.calls[0][0].where.sellerId).toBe("alice");
+  });
+  it.each(["put", "patch", "delete"] as const)("rejects another seller's %s", async (method) => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "bob", status: "ACTIVE" });
+    const response = await request(app)[method](`/api/listings/l1${method === "patch" ? "/sold" : ""}`).set("Authorization", auth).send(validBody);
+    expect(response.status).toBe(403);
+    expect(prisma.listing.update).not.toHaveBeenCalled();
+  });
+  it("atomically replaces listing photos and retains ownership/status on edit", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "ACTIVE" });
+    prisma.category.findUnique.mockResolvedValue({ id: "cat1" });
+    prisma.listing.update.mockResolvedValue({ id: "l1", title: validBody.title });
+    const response = await request(app).put("/api/listings/l1").set("Authorization", auth).send({ ...validBody, sellerId: "bob", status: "SOLD" });
+    expect(response.status).toBe(200);
+    const data = prisma.listing.update.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("sellerId");
+    expect(data).not.toHaveProperty("status");
+    expect(data.images.deleteMany).toEqual({});
+    expect(data.images.create).toHaveLength(2);
+  });
+  it("persists sold status and still allows the details page to display it", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "SOLD" });
+    prisma.listing.update.mockResolvedValue({ id: "l1", status: "SOLD" });
+    expect((await request(app).patch("/api/listings/l1/sold").set("Authorization", auth)).body.status).toBe("SOLD");
+    expect((await request(app).get("/api/listings/l1").set("Authorization", auth)).status).toBe(200);
+  });
+  it("removes a listing without deleting conversation references", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "ACTIVE" });
+    prisma.listing.update.mockResolvedValue({ id: "l1", status: "REMOVED" });
+    expect((await request(app).delete("/api/listings/l1").set("Authorization", auth)).status).toBe(204);
+    expect(prisma.listing.update).toHaveBeenCalledWith({ where: { id: "l1" }, data: { status: "REMOVED", archivedAt: expect.any(Date) } });
+  });
+  it("rejects invalid edits before writing", async () => {
+    const response = await request(app).put("/api/listings/l1").set("Authorization", auth).send({ ...validBody, priceCents: -1 });
+    expect(response.status).toBe(400);
+    expect(prisma.listing.update).not.toHaveBeenCalled();
   });
 });

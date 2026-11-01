@@ -72,6 +72,46 @@ describe("auth", () => {
 });
 
 describe("POST /api/conversations", () => {
+  const campusEvent = {
+    id: "e1", organizerId: BOB, title: "Soccer League", description: "Bring your team", location: "BMO Centre",
+    startsAt: new Date("2099-01-01T18:00:00Z"), endsAt: null, endDate: "2099-01-20", imageUrl: null, status: "PUBLISHED",
+    organizer: { id: BOB, profile: { displayName: "Bob" } },
+  };
+
+  it("creates an event-specific DM with durable event details", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.event.findUnique.mockResolvedValue(campusEvent);
+    prisma.conversation.findUnique.mockResolvedValue(null);
+    prisma.conversation.create.mockResolvedValue(directConversation({ eventId: "e1", event: campusEvent }));
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, eventId: "e1" });
+    expect(response.status).toBe(201);
+    expect(prisma.conversation.create.mock.calls[0][0].data).toMatchObject({ eventId: "e1", directKey: "event:e1:alice_bob" });
+    expect(response.body.event).toMatchObject({ id: "e1", title: "Soccer League", endsAt: null, endDate: "2099-01-20" });
+  });
+
+  it("reuses the same event DM without replacing a general DM's context", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.event.findUnique.mockResolvedValue(campusEvent);
+    prisma.conversation.findUnique.mockResolvedValue(directConversation({ event: campusEvent }));
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, eventId: "e1" });
+    expect(response.status).toBe(200);
+    expect(prisma.conversation.findUnique.mock.calls[0][0].where.directKey).toBe("event:e1:alice_bob");
+    expect(prisma.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { ...campusEvent, status: "CANCELLED" }, { ...campusEvent, status: "DRAFT" }, { ...campusEvent, organizerId: "carol" }])("rejects unavailable or mismatched event context", async (event) => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.event.findUnique.mockResolvedValue(event);
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, eventId: "e1" });
+    expect(response.status).toBe(400);
+    expect(prisma.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects ambiguous event and listing context", async () => {
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, eventId: "e1", listingId: "l1" });
+    expect(response.status).toBe(400);
+  });
+
   it("refuses to start a conversation with yourself", async () => {
     const res = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: ALICE });
     expect(res.status).toBe(400);
@@ -94,7 +134,7 @@ describe("POST /api/conversations", () => {
     expect(res.status).toBe(201);
     expect(prisma.conversation.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "PENDING", requestedById: ALICE, directKey: "alice_bob" }),
+        data: expect.objectContaining({ status: "PENDING", requestedById: ALICE, directKey: "direct:alice_bob" }),
       })
     );
     expect(res.body).toMatchObject({ id: "c1", name: "bob", isRequest: false });
@@ -124,6 +164,37 @@ describe("POST /api/conversations", () => {
 
     expect(res.status).toBe(201);
     expect(prisma.conversation.create.mock.calls[0][0].data.listingId).toBe("l1");
+    expect(prisma.conversation.create.mock.calls[0][0].data.directKey).toBe("listing:l1:alice_bob");
+  });
+
+  it("lets the seller start a separate ad chat with a buyer", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: ALICE, status: "ACTIVE" });
+    prisma.conversation.findUnique.mockResolvedValue(null);
+    prisma.conversation.create.mockResolvedValue(directConversation({ listingId: "l1", requestedById: ALICE }));
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, listingId: "l1" });
+    expect(response.status).toBe(201);
+    expect(prisma.conversation.create.mock.calls[0][0].data).toMatchObject({ listingId: "l1", status: "PENDING", directKey: "listing:l1:alice_bob" });
+  });
+
+  it("reuses a legacy chat for the same ad without discarding its history", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: BOB, status: "ACTIVE" });
+    prisma.conversation.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(directConversation({ listingId: "l1" }));
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB, listingId: "l1" });
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe("c1");
+    expect(prisma.conversation.create).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse a legacy ad chat for a general profile DM", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
+    prisma.conversation.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(directConversation({ listingId: "l1", status: "ACCEPTED" }));
+    prisma.conversation.create.mockResolvedValue(directConversation({ id: "general", requestedById: ALICE }));
+    const response = await request(app).post("/api/conversations").set("Authorization", aliceAuth).send({ recipientId: BOB });
+    expect(response.status).toBe(201);
+    expect(response.body.id).toBe("general");
+    expect(prisma.conversation.create.mock.calls[0][0].data.directKey).toBe("direct:alice_bob");
   });
 
   it("rejects a listing that is not the recipient's", async () => {
@@ -139,18 +210,20 @@ describe("POST /api/conversations", () => {
     expect(prisma.conversation.create).not.toHaveBeenCalled();
   });
 
-  it("reuses the existing DM when messaging the same seller about another listing", async () => {
+  it("creates a separate pending chat for another ad from the same seller", async () => {
     prisma.user.findUnique.mockResolvedValue({ id: BOB, status: "ACTIVE" });
     prisma.listing.findUnique.mockResolvedValue({ id: "l2", sellerId: BOB, status: "ACTIVE" });
-    prisma.conversation.findUnique.mockResolvedValue(directConversation({ listingId: "l1" }));
+    prisma.conversation.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(directConversation({ listingId: "l1", status: "ACCEPTED" }));
+    prisma.conversation.create.mockResolvedValue(directConversation({ id: "c2", listingId: "l2", requestedById: ALICE }));
 
     const res = await request(app)
       .post("/api/conversations")
       .set("Authorization", aliceAuth)
       .send({ recipientId: BOB, listingId: "l2" });
 
-    expect(res.status).toBe(200);
-    expect(prisma.conversation.create).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(prisma.conversation.create.mock.calls[0][0].data).toMatchObject({ listingId: "l2", directKey: "listing:l2:alice_bob", status: "PENDING" });
+    expect(res.body.id).toBe("c2");
   });
 
   it("recovers when a concurrent request created the DM first", async () => {
@@ -178,14 +251,17 @@ describe("GET /api/conversations", () => {
     prisma.conversation.findMany.mockResolvedValue([
       directConversation({ lastMessage: { text: "Is the book still available?", senderId: BOB, createdAt: new Date() } }),
     ]);
-    prisma.message.count.mockResolvedValue(2);
+    prisma.message.groupBy.mockResolvedValueOnce([{ conversationId: "c1", _count: { _all: 2 } }]);
 
     const res = await request(app).get("/api/conversations?tab=requests").set("Authorization", aliceAuth);
 
     expect(res.status).toBe(200);
     const where = prisma.conversation.findMany.mock.calls[0][0].where;
     expect(where).toMatchObject({
-      participants: { some: { userId: ALICE, blockedAt: null } },
+      participants: { some: { userId: ALICE, AND: [
+        { OR: [{ blockedAt: null }, { blockedAt: { isSet: false } }] },
+        { OR: [{ ignoredAt: null }, { ignoredAt: { isSet: false } }] },
+      ] } },
       status: "PENDING",
       requestedById: { not: ALICE },
     });

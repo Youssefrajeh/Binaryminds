@@ -31,11 +31,11 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+      <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6">
         <Logo animated />
 
         {/* Desktop nav */}
-        <nav className={`${desktopNav} items-center gap-1`}>
+        <nav className={`${desktopNav} min-w-0 flex-wrap items-center justify-end gap-1`}>
           <ThemeToggle />
           <Link to="/about" className={navLink}>
             About
@@ -61,6 +61,9 @@ export function Nav() {
               <Link to="/events" className={navLink}>
                 Events
               </Link>
+              {(user?.role === "ORGANIZER" || user?.role === "ADMINISTRATOR") && <Link to="/events/manage" className={navLink}>Event Management</Link>}
+              {user?.role === "ADMINISTRATOR" && <Link to="/admin/users" className={navLink}>Admin users</Link>}
+              {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink}>Reports</Link>}
               <Link to="/members" className={navLink}>
                 Students
               </Link>
@@ -95,6 +98,8 @@ export function Nav() {
           <ThemeToggle />
           <button
             type="button"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label={
               badge > 0
@@ -129,7 +134,7 @@ export function Nav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className={`border-t border-line bg-surface px-6 pb-4 pt-2 ${mobileOnly}`}>
+        <div id="mobile-nav" className={`max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-line bg-surface px-6 pb-4 pt-2 ${mobileOnly}`}>
           <nav className="flex flex-col gap-1">
             <Link
               to="/about"
@@ -140,6 +145,10 @@ export function Nav() {
             </Link>
             {isAuthenticated ? (
               <>
+                <Link to="/marketplace" className={navLink} onClick={() => setMobileOpen(false)}>Marketplace</Link>
+                {(user?.role === "ORGANIZER" || user?.role === "ADMINISTRATOR") && <Link to="/events/manage" className={navLink} onClick={() => setMobileOpen(false)}>Event Management</Link>}
+                {user?.role === "ADMINISTRATOR" && <Link to="/admin/users" className={navLink} onClick={() => setMobileOpen(false)}>Admin users</Link>}
+                {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink} onClick={() => setMobileOpen(false)}>Reports</Link>}
                 <Link
                   to="/messages"
                   className={`${navLink} flex items-center gap-1.5`}
@@ -154,13 +163,6 @@ export function Nav() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Study groups
-                </Link>
-                <Link
-                  to="/marketplace"
-                  className={navLink}
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Marketplace
                 </Link>
                 <Link
                   to="/lost-found"

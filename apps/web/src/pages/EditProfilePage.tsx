@@ -10,6 +10,7 @@ export function EditProfilePage() {
 
   const [displayName, setDisplayName] = useState("");
   const [program, setProgram] = useState("");
+  const [courses, setCourses] = useState("");
   const [yearOfStudy, setYearOfStudy] = useState("");
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
@@ -26,6 +27,7 @@ export function EditProfilePage() {
         if (data.profile) {
           setDisplayName(data.profile.displayName || "");
           setProgram(data.profile.program || "");
+          setCourses((data.profile.courses || []).join(", "));
           setYearOfStudy(data.profile.yearOfStudy?.toString() || "");
           setBio(data.profile.bio || "");
           setInterests(data.profile.interests || []);
@@ -74,6 +76,7 @@ export function EditProfilePage() {
         yearOfStudy: yearOfStudy ? parseInt(yearOfStudy, 10) : null,
         bio: bio.trim() || null,
         interests,
+        courses: courses.split(",").map((course) => course.trim()).filter(Boolean),
       });
 
       const profileRes = await api.get("/profile/me");
@@ -151,6 +154,12 @@ export function EditProfilePage() {
           </div>
 
           <div>
+            <label htmlFor="profile-courses" className="field-label">Courses (optional)</label>
+            <input id="profile-courses" type="text" maxLength={620} placeholder="e.g. INFO-5103, INFO-5104" value={courses} onChange={(e) => setCourses(e.target.value)} className="field-input" aria-describedby="courses-help" />
+            <p id="courses-help" className="mt-1 text-xs text-muted">Separate course codes with commas (up to 20). Other students can find you by these courses.</p>
+          </div>
+
+          <div>
             <label htmlFor="profile-year" className="field-label">
               Year of study
             </label>
@@ -165,6 +174,10 @@ export function EditProfilePage() {
               <option value="2">2nd year</option>
               <option value="3">3rd year</option>
               <option value="4">4th year</option>
+              <option value="5">5th year</option>
+              <option value="6">6th year</option>
+              <option value="7">7th year</option>
+              <option value="8">8th year</option>
             </select>
           </div>
 

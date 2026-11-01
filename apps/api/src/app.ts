@@ -10,6 +10,10 @@ import { profileRouter } from "./routes/profile.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { studyGroupsRouter } from "./routes/studyGroups.js";
 import { listingsRouter } from "./routes/listings.js";
+import { lostFoundRouter } from "./routes/lostFound.js";
+import { eventsRouter } from "./routes/events.js";
+import { adminRouter } from "./routes/admin.js";
+import { reportsRouter } from "./routes/reports.js";
 
 export function createApp() {
   const app = express();
@@ -29,6 +33,10 @@ export function createApp() {
   apiRouter.use("/conversations", conversationsRouter);
   apiRouter.use("/study-groups", studyGroupsRouter);
   apiRouter.use("/listings", listingsRouter);
+  apiRouter.use("/lost-found", lostFoundRouter);
+  apiRouter.use("/events", eventsRouter);
+  apiRouter.use("/admin", adminRouter);
+  apiRouter.use("/reports", reportsRouter);
 
   app.use("/api", apiRouter);
   // Only the health check lives at the root: mounting the whole API there would

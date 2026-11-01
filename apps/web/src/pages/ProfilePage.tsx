@@ -7,21 +7,18 @@ import { useAuth } from "../context/AuthContext";
 import { toSquareAvatar } from "../lib/image";
 import api from "../lib/api";
 
-const YEAR_LABELS: Record<number, string> = {
-  1: "1st year",
-  2: "2nd year",
-  3: "3rd year",
-  4: "4th year",
-};
-
 function formatMemberSince(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export function ProfilePage() {
   const { user, updateUser } = useAuth();
   const location = useLocation();
-  const justSaved = (location.state as { saved?: boolean } | null)?.saved === true;
+  const justSaved =
+    (location.state as { saved?: boolean } | null)?.saved === true;
 
   const fileInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -62,7 +59,9 @@ export function ProfilePage() {
       await refreshUser();
       setSuccess("Profile picture updated!");
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || "Failed to upload picture");
+      setError(
+        err.response?.data?.error || err.message || "Failed to upload picture",
+      );
     } finally {
       setUploading(false);
     }
@@ -85,10 +84,6 @@ export function ProfilePage() {
 
   const profile = user?.profile ?? null;
   const name = profile?.displayName || user?.email?.split("@")[0] || "Student";
-  const details = [
-    profile?.program,
-    profile?.yearOfStudy ? YEAR_LABELS[profile.yearOfStudy] ?? `Year ${profile.yearOfStudy}` : null,
-  ].filter(Boolean);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -96,7 +91,9 @@ export function ProfilePage() {
       <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">Your profile</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">
+              Your profile
+            </h1>
             <p className="mt-1.5 text-sm text-ink-soft">
               This is how other Fanshawe students see you on CampusHub.
             </p>
@@ -112,14 +109,20 @@ export function ProfilePage() {
         </div>
 
         {fetching && !user ? (
-          <p className="mt-8 py-8 text-center text-sm text-muted">Loading profile…</p>
+          <p className="mt-8 py-8 text-center text-sm text-muted">
+            Loading profile…
+          </p>
         ) : (
           <div className="mt-6 space-y-6">
             {/* Identity card */}
             <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
               <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:items-center sm:text-left">
                 <div className="relative">
-                  <Avatar name={name} src={profile?.avatarUrl} className="h-28 w-28 text-3xl" />
+                  <Avatar
+                    name={name}
+                    src={profile?.avatarUrl}
+                    className="h-28 w-28 text-3xl"
+                  />
                   {uploading && (
                     <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-xs font-medium text-white">
                       Saving…
@@ -132,7 +135,16 @@ export function ProfilePage() {
                     aria-label="Change profile picture"
                     className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-surface bg-brand text-white shadow-sm transition hover:bg-brand-dark disabled:opacity-60"
                   >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                       <circle cx="12" cy="13" r="4" />
                     </svg>
@@ -147,15 +159,40 @@ export function ProfilePage() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-xl font-semibold text-ink">{name}</h2>
+                  <h2 className="truncate text-xl font-semibold text-ink">
+                    {name}
+                  </h2>
                   <p className="mt-1 flex flex-wrap items-center justify-center gap-2 text-sm text-ink-soft sm:justify-start">
                     <span className="truncate">{user?.email}</span>
                     <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
                       Verified
                     </span>
                   </p>
-                  {details.length > 0 && (
-                    <p className="mt-2 text-sm text-ink">{details.join(" · ")}</p>
+                  <dl className="mt-3 space-y-1 text-sm">
+                    <div>
+                      <dt className="inline font-medium text-ink">Program: </dt>
+                      <dd className="inline break-words text-ink-soft">
+                        {profile?.program || "Not added"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-medium text-ink">
+                        Year of study:{" "}
+                      </dt>
+                      <dd className="inline text-ink-soft">
+                        {profile?.yearOfStudy
+                          ? `Year ${profile.yearOfStudy}`
+                          : "Not added"}
+                      </dd>
+                    </div>
+                  </dl>
+                  {(!profile?.program || !profile?.yearOfStudy) && (
+                    <Link
+                      to="/profile/edit"
+                      className="link mt-2 inline-block text-sm"
+                    >
+                      Add your program and year
+                    </Link>
                   )}
                   {user?.createdAt && (
                     <p className="mt-1 text-xs text-muted">
@@ -190,7 +227,9 @@ export function ProfilePage() {
             <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
               <h3 className="text-sm font-semibold text-ink">About</h3>
               {profile?.bio ? (
-                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">{profile.bio}</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-soft">
+                  {profile.bio}
+                </p>
               ) : (
                 <p className="mt-2 text-sm text-muted">
                   No bio yet.{" "}
@@ -200,6 +239,26 @@ export function ProfilePage() {
                 </p>
               )}
 
+              <h3 className="mt-6 text-sm font-semibold text-ink">Courses</h3>
+              {profile?.courses?.length ? (
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {profile.courses.map((course) => (
+                    <li
+                      key={course}
+                      className="rounded-md bg-canvas px-2.5 py-1 text-xs font-medium text-ink-soft"
+                    >
+                      {course}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  No courses added.{" "}
+                  <Link to="/profile/edit" className="link">
+                    Add courses
+                  </Link>
+                </p>
+              )}
               <h3 className="mt-6 text-sm font-semibold text-ink">Interests</h3>
               {profile?.interests?.length ? (
                 <ul className="mt-2 flex flex-wrap gap-2">

@@ -1,5 +1,5 @@
 import type { Conversation, Message, Participant, Prisma } from "@prisma/client";
-import type { ConversationDto, MessageDto } from "@campushub/shared";
+import type { ConversationDto, ConversationSummaryDto, MessageDto } from "@campushub/shared";
 import { prisma } from "./prisma.js";
 
 /* ------------------------------------------------------------------ */
@@ -50,12 +50,48 @@ export function countUnread(conversationId: string, userId: string, lastReadAt: 
   });
 }
 
+export async function unreadCounts(userId: string, memberships: { conversationId: string; lastReadAt: Date | null }[]) {
+  const counts = new Map<string, number>();
+  // Bound the query expression even for accounts with a long chat history.
+  for (let offset = 0; offset < memberships.length; offset += 200) {
+    const rows = await prisma.message.groupBy({
+      by: ["conversationId"],
+      where: { senderId: { not: userId }, OR: memberships.slice(offset, offset + 200).map((member) => ({ conversationId: member.conversationId, ...(member.lastReadAt ? { createdAt: { gt: member.lastReadAt } } : {}) })) },
+      _count: { _all: true },
+    });
+    for (const row of rows) counts.set(row.conversationId, row._count._all);
+  }
+  return counts;
+}
+
+export function conversationWhere(userId: string, tab: "inbox" | "requests"): Prisma.ConversationWhereInput {
+  const hasMessages = { lastMessage: { isSet: true } };
+  return {
+    participants: { some: { userId, AND: [
+      { OR: [{ blockedAt: null }, { blockedAt: { isSet: false } }] },
+      ...(tab === "requests" ? [{ OR: [{ ignoredAt: null }, { ignoredAt: { isSet: false } }] }] : []),
+    ] } },
+    ...(tab === "requests" ? { type: "DIRECT", status: "PENDING", requestedById: { not: userId }, ...hasMessages } : {
+      OR: [{ type: "GROUP" }, { type: "DIRECT", status: "ACCEPTED", ...hasMessages }, { type: "DIRECT", status: "PENDING", requestedById: userId, ...hasMessages }],
+    }),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  DTO mapping                                                        */
 /* ------------------------------------------------------------------ */
 
 export const conversationInclude = {
+  listing: { select: {
+    id: true, title: true, description: true, priceCents: true, condition: true, status: true,
+    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
+    seller: { select: { profile: { select: { displayName: true } } } },
+  } },
+  event: { include: { organizer: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } } } },
   participants: {
+    // MongoDB can retain participant rows after an account is removed externally.
+    // Filter the relation before Prisma attempts to materialize its required user.
+    where: { user: { is: {} } },
     include: {
       user: {
         select: {
@@ -67,6 +103,16 @@ export const conversationInclude = {
     },
   },
 } satisfies Prisma.ConversationInclude;
+
+export const conversationSummaryInclude = {
+  ...conversationInclude,
+  listing: { select: { id: true, title: true } },
+  event: { select: { id: true, title: true } },
+} satisfies Prisma.ConversationInclude;
+
+export function toConversationSummaryDto(conversation: Prisma.ConversationGetPayload<{ include: typeof conversationSummaryInclude }>, userId: string, unreadCount: number): ConversationSummaryDto {
+  return { ...toConversationDto({ ...conversation, listing: null, event: null }, userId, unreadCount), listing: conversation.listing, event: conversation.event };
+}
 
 export type ConversationWithMembers = Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>;
 
@@ -88,10 +134,25 @@ export function toConversationDto(
   const other = members.find((m) => m.id !== userId);
   const me = conversation.participants.find((p) => p.userId === userId);
   const name =
-    conversation.type === "GROUP" ? conversation.name ?? "Study group" : other?.displayName ?? "Conversation";
+    conversation.type === "GROUP" ? conversation.name ?? "Study group" : other?.displayName ?? "Deleted account";
 
   return {
     id: conversation.id,
+    listing: conversation.listing ? {
+      id: conversation.listing.id,
+      title: conversation.listing.title,
+      description: conversation.listing.description,
+      priceCents: conversation.listing.priceCents,
+      condition: conversation.listing.condition,
+      status: conversation.listing.status,
+      imageUrl: conversation.listing.images[0]?.url ?? null,
+      sellerName: conversation.listing.seller.profile?.displayName || "CampusHub seller",
+    } : null,
+    event: conversation.event ? {
+      ...conversation.event,
+      startsAt: conversation.event.startsAt.toISOString(),
+      endsAt: conversation.event.endsAt?.toISOString() ?? null,
+    } : null,
     type: conversation.type,
     name,
     status: conversation.status,
@@ -120,6 +181,7 @@ export function toMessageDto(message: Message): MessageDto {
     conversationId: message.conversationId,
     senderId: message.senderId,
     text: message.text,
+    removedAt: message.removedAt?.toISOString() ?? null,
     attachments: message.attachments,
     clientId: message.clientId,
     createdAt: message.createdAt.toISOString(),

@@ -12,5 +12,5 @@ export function corsOptions(): CorsOptions {
     .map((o) => o.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-  return { origin: origins.length > 0 ? origins : true };
+  return { origin: origins.length > 0 ? origins : true, exposedHeaders: ["X-Has-More"] };
 }

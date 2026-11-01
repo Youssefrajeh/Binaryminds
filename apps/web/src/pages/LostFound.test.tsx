@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { LostFoundPage } from "./LostFoundPage";
 import { CreateLostFoundPage } from "./CreateLostFoundPage";
@@ -31,7 +31,19 @@ function renderList() {
   render(<MemoryRouter><LostFoundPage /></MemoryRouter>);
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function fillForm() {
+  fireEvent.click(screen.getByLabelText("I found something"));
+  fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Wallet" } });
+  fireEvent.change(screen.getByLabelText("Description *"), { target: { value: "Brown leather" } });
+  fireEvent.change(screen.getByLabelText("Category *"), { target: { value: "OTHER" } });
+  fireEvent.change(screen.getByLabelText("Date found *"), { target: { value: "2020-10-01" } });
+  fireEvent.change(screen.getByLabelText("Location *"), { target: { value: "Cafeteria" } });
+}
 
 describe("LostFoundPage", () => {
   it("shows Open and Resolved badges", async () => {
@@ -96,6 +108,86 @@ describe("LostFoundPage", () => {
     renderList();
     expect(await screen.findByText("Boom")).toBeTruthy();
   });
+
+  it("combines all filters and clears them back to the unfiltered first page", async () => {
+    mockPosts([basePost]);
+    renderList();
+    await screen.findByText("Blue water bottle");
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: " wallet " } });
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "FOUND" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "KEYS" } });
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: " library " } });
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2020-10-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2020-10-02" } });
+    await waitFor(() => expect(get).toHaveBeenLastCalledWith("/lost-found", {
+      params: { search: "wallet", kind: "FOUND", category: "KEYS", location: "library", from: "2020-10-01", to: "2020-10-02" },
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(get).toHaveBeenLastCalledWith("/lost-found", { params: {} }));
+    expect((screen.getByLabelText("Location") as HTMLInputElement).value).toBe("");
+  });
+
+  it("shows the filtered empty state", async () => {
+    mockPosts([]);
+    renderList();
+    await screen.findByText("No posts yet");
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "KEYS" } });
+    expect(await screen.findByText("No posts match your filters")).toBeTruthy();
+  });
+
+  it("retries a failed later page without skipping it or hiding existing posts", async () => {
+    get.mockResolvedValueOnce({ data: [basePost], headers: { "x-has-more": "true" } });
+    renderList();
+    await screen.findByText("Blue water bottle");
+    get.mockRejectedValueOnce({ response: { data: { error: "Try later" } } });
+    fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
+    await screen.findByText("Try later");
+    expect(screen.getByText("Blue water bottle")).toBeTruthy();
+    get.mockResolvedValueOnce({ data: [basePost, { ...basePost, id: "p2", title: "Keys" }], headers: { "x-has-more": "false" } });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText("Keys");
+    expect(get).toHaveBeenLastCalledWith("/lost-found", { params: { page: 2 } });
+    expect(screen.getAllByText("Blue water bottle")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+  });
+
+  it("starts again at page one when a filter changes after loading more", async () => {
+    get.mockResolvedValueOnce({ data: [basePost], headers: { "x-has-more": "true" } });
+    renderList();
+    await screen.findByText("Blue water bottle");
+    mockPosts([{ ...basePost, id: "p2", title: "Other item" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await screen.findByText("Other item");
+    mockPosts([{ ...basePost, id: "p3", title: "Matching keys", category: "KEYS" }]);
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "KEYS" } });
+    await screen.findByText("Matching keys");
+    expect(get).toHaveBeenLastCalledWith("/lost-found", { params: { category: "KEYS" } });
+    expect(screen.queryByText("Blue water bottle")).toBeNull();
+    expect(screen.queryByText("Other item")).toBeNull();
+  });
+
+  it("ignores an older response after filters have changed", async () => {
+    let finishOld!: (value: unknown) => void;
+    get.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }));
+    renderList();
+    await waitFor(() => expect(finishOld).toBeTypeOf("function"));
+    mockPosts([{ ...basePost, title: "Matching keys", category: "KEYS" }]);
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "KEYS" } });
+    await screen.findByText("Matching keys");
+    await act(async () => finishOld({ data: [basePost], headers: {} }));
+    expect(screen.getByText("Matching keys")).toBeTruthy();
+    expect(screen.queryByText("Blue water bottle")).toBeNull();
+  });
+
+  it("offers contact only for another student's open report", async () => {
+    mockPosts([basePost, { ...basePost, id: "p2", authorId: "other", title: "Another student's item" },
+      { ...basePost, id: "p3", authorId: "other", title: "Resolved item", status: "RESOLVED" }]);
+    renderList();
+    await screen.findByText("Another student's item");
+    post.mockResolvedValueOnce({ data: { id: "chat1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Message poster" }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/conversations", { recipientId: "other" }));
+  });
 });
 
 describe("CreateLostFoundPage", () => {
@@ -146,5 +238,46 @@ describe("CreateLostFoundPage", () => {
     fireEvent.change(screen.getByLabelText("Location *"), { target: { value: "Gym" } });
     fireEvent.click(screen.getByRole("button", { name: "Create post" }));
     expect(await screen.findByText("Server says no")).toBeTruthy();
+  });
+
+  it("submits a selected photo as a data URL and resets the form after saving", async () => {
+    vi.stubGlobal("URL", class extends URL {
+      static createObjectURL = vi.fn(() => "blob:photo");
+      static revokeObjectURL = vi.fn();
+    });
+    post.mockResolvedValueOnce({ data: basePost });
+    renderForm();
+    fillForm();
+    const file = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "photo.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("Photo"), { target: { files: [file] } });
+    expect(screen.getByAltText("Selected item photo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create post" }));
+    await screen.findByText(/Your post is live/);
+    expect(post).toHaveBeenCalledWith("/lost-found", expect.objectContaining({ imageUrl: "data:image/png;base64,iVBORw0KGgo=" }));
+    expect((screen.getByLabelText("Title *") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByAltText("Selected item photo")).toBeNull();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:photo");
+  });
+
+  it.each([
+    ["unsupported type", new File(["text"], "notes.txt", { type: "text/plain" }), /Only JPG, PNG, and WebP/],
+    ["oversized photo", new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", { type: "image/png" }), /smaller than 2 MB/],
+  ])("blocks %s before posting", async (_name, file, message) => {
+    renderForm();
+    fillForm();
+    fireEvent.change(screen.getByLabelText("Photo"), { target: { files: [file] } });
+    expect(screen.getByText(message)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create post" }));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByText(message)).toBeTruthy();
+  });
+
+  it("rejects future dates without sending a request", async () => {
+    renderForm();
+    fillForm();
+    fireEvent.change(screen.getByLabelText("Date found *"), { target: { value: "2999-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create post" }));
+    expect(screen.getByText("Date cannot be in the future.")).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
   });
 });

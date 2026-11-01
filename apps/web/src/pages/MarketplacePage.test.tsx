@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 vi.mock("../components/Nav", () => ({ Nav: () => <nav /> }));
@@ -38,6 +38,12 @@ beforeEach(() => vi.resetModules());
 afterEach(cleanup);
 
 describe("MarketplacePage", () => {
+  it("removes a moderated listing from an already-loaded board", async () => {
+    mockApi(); await renderPage();
+    await screen.findByText("Calculus textbook");
+    act(() => window.dispatchEvent(new CustomEvent("campushub:content-removed", { detail: { targetType: "LISTING", targetId: "l1" } })));
+    expect(screen.queryByText("Calculus textbook")).toBeNull();
+  });
   it("renders listings with formatted price and condition", async () => {
     mockApi();
     renderPage();

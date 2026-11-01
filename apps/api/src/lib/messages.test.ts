@@ -18,7 +18,7 @@ function membership(conversation: Record<string, unknown> = {}) {
     userId: "bob",
     conversationId: "c1",
     blockedAt: null,
-    conversation: { id: "c1", type: "DIRECT", status: "PENDING", requestedById: "alice", ...conversation },
+    conversation: { id: "c1", type: "DIRECT", status: "PENDING", requestedById: "alice", lastMessage: { text: "Earlier message" }, ...conversation },
   };
 }
 
@@ -35,6 +35,12 @@ beforeEach(() => {
 });
 
 describe("sendMessage", () => {
+  it("keeps the first actual message as a request even if the other person opened the empty chat", async () => {
+    prisma.participant.findUnique.mockResolvedValue(membership({ lastMessage: null }));
+    const result = await sendMessage("bob", { conversationId: "c1", text: "First actual message" });
+    expect(result.accepted).toBe(false);
+    expect(prisma.conversation.update.mock.calls[0][0].data).toMatchObject({ requestedById: "bob" });
+  });
   it("rejects empty and whitespace-only messages", async () => {
     await expect(sendMessage("bob", { conversationId: "c1", text: "   " })).rejects.toThrow("Message cannot be empty");
     expect(prisma.message.create).not.toHaveBeenCalled();

@@ -7,13 +7,6 @@ import { MessageButton } from "../components/MessageButton";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
 
-const YEAR_LABELS: Record<number, string> = {
-  1: "1st year",
-  2: "2nd year",
-  3: "3rd year",
-  4: "4th year",
-};
-
 export function PublicProfilePage() {
   const { userId } = useParams();
   const { user } = useAuth();
@@ -41,10 +34,6 @@ export function PublicProfilePage() {
     return <Navigate to="/profile" replace />;
   }
 
-  const details = profile
-    ? [profile.program, profile.yearOfStudy ? YEAR_LABELS[profile.yearOfStudy] ?? `Year ${profile.yearOfStudy}` : null].filter(Boolean)
-    : [];
-
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
@@ -65,7 +54,10 @@ export function PublicProfilePage() {
                 <Avatar name={profile.displayName} src={profile.avatarUrl} className="h-28 w-28 text-3xl" />
                 <div className="min-w-0 flex-1">
                   <h1 className="truncate text-xl font-semibold text-ink">{profile.displayName}</h1>
-                  {details.length > 0 && <p className="mt-1 text-sm text-ink">{details.join(" · ")}</p>}
+                  <dl className="mt-3 space-y-1 text-sm">
+                    <div><dt className="inline font-medium text-ink">Program: </dt><dd className="inline break-words text-ink-soft">{profile.program || "Not added"}</dd></div>
+                    <div><dt className="inline font-medium text-ink">Year of study: </dt><dd className="inline text-ink-soft">{profile.yearOfStudy ? `Year ${profile.yearOfStudy}` : "Not added"}</dd></div>
+                  </dl>
                   <p className="mt-1 text-xs text-muted">
                     Member since{" "}
                     {new Date(profile.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
@@ -83,6 +75,10 @@ export function PublicProfilePage() {
                 {profile.bio || "No bio yet."}
               </p>
 
+              {!!profile.courses?.length && <>
+                <h2 className="mt-6 text-sm font-semibold text-ink">Courses</h2>
+                <ul className="mt-2 flex flex-wrap gap-2">{profile.courses.map((course) => <li key={course} className="rounded-md bg-canvas px-2.5 py-1 text-xs font-medium text-ink-soft">{course}</li>)}</ul>
+              </>}
               {profile.interests.length > 0 && (
                 <>
                   <h2 className="mt-6 text-sm font-semibold text-ink">Interests</h2>
