@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 
 const navLink =
-  "rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-canvas hover:text-ink";
+  "whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition hover:bg-canvas hover:text-ink";
 
 export function Nav() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -15,6 +15,9 @@ export function Nav() {
     user?.profile?.displayName || user?.email?.split("@")[0] || "Profile";
   const [mobileOpen, setMobileOpen] = useState(false);
   const { unreadTotal, requestCount } = useSocket();
+  // The signed-in link row needs far more width than the guest one
+  const desktopNav = isAuthenticated ? "hidden xl:flex" : "hidden sm:flex";
+  const mobileOnly = isAuthenticated ? "xl:hidden" : "sm:hidden";
   const badge = unreadTotal + requestCount;
   const badgeEl =
     badge > 0 ? (
@@ -32,7 +35,7 @@ export function Nav() {
         <Logo animated />
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-2 sm:flex">
+        <nav className={`${desktopNav} items-center gap-1`}>
           <ThemeToggle />
           <Link to="/about" className={navLink}>
             About
@@ -71,7 +74,7 @@ export function Nav() {
                   className="h-7 w-7 text-xs"
                 />
               </Link>
-              <button onClick={logout} className="btn-secondary">
+              <button onClick={logout} className="btn-secondary whitespace-nowrap">
                 Log out
               </button>
             </>
@@ -88,7 +91,7 @@ export function Nav() {
         </nav>
 
         {/* Mobile controls */}
-        <div className="flex items-center gap-1 sm:hidden">
+        <div className={`flex items-center gap-1 ${mobileOnly}`}>
           <ThemeToggle />
           <button
             type="button"
@@ -126,7 +129,7 @@ export function Nav() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t border-line bg-surface px-6 pb-4 pt-2 sm:hidden">
+        <div className={`border-t border-line bg-surface px-6 pb-4 pt-2 ${mobileOnly}`}>
           <nav className="flex flex-col gap-1">
             <Link
               to="/about"
@@ -151,6 +154,13 @@ export function Nav() {
                   onClick={() => setMobileOpen(false)}
                 >
                   Study groups
+                </Link>
+                <Link
+                  to="/marketplace"
+                  className={navLink}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Marketplace
                 </Link>
                 <Link
                   to="/lost-found"
