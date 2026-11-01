@@ -25,7 +25,8 @@ const user = {
 };
 
 // 1x1 transparent PNG
-const tinyPng = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+const tinyPng =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -38,20 +39,32 @@ describe("profile auth", () => {
 describe("GET /api/profile/me", () => {
   it("returns 404 when the user is gone", async () => {
     prisma.user.findUnique.mockResolvedValue(null);
-    expect((await request(app).get("/api/profile/me").set("Authorization", auth)).status).toBe(404);
+    expect(
+      (await request(app).get("/api/profile/me").set("Authorization", auth))
+        .status,
+    ).toBe(404);
   });
 
   it("returns the account and profile", async () => {
     prisma.user.findUnique.mockResolvedValue(user);
-    const res = await request(app).get("/api/profile/me").set("Authorization", auth);
+    const res = await request(app)
+      .get("/api/profile/me")
+      .set("Authorization", auth);
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ id: "alice", email: user.email, profile: null });
+    expect(res.body).toMatchObject({
+      id: "alice",
+      email: user.email,
+      profile: null,
+    });
   });
 });
 
 describe("PUT /api/profile/me", () => {
   it("validates input", async () => {
-    const res = await request(app).put("/api/profile/me").set("Authorization", auth).send({ displayName: "" });
+    const res = await request(app)
+      .put("/api/profile/me")
+      .set("Authorization", auth)
+      .send({ displayName: "" });
     expect(res.status).toBe(400);
     expect(prisma.profile.upsert).not.toHaveBeenCalled();
   });
@@ -65,7 +78,10 @@ describe("PUT /api/profile/me", () => {
   });
 
   it("upserts the profile", async () => {
-    prisma.profile.upsert.mockResolvedValue({ userId: "alice", displayName: "Alice" });
+    prisma.profile.upsert.mockResolvedValue({
+      userId: "alice",
+      displayName: "Alice",
+    });
     const res = await request(app)
       .put("/api/profile/me")
       .set("Authorization", auth)
@@ -74,7 +90,11 @@ describe("PUT /api/profile/me", () => {
     expect(prisma.profile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: "alice" },
-        update: expect.objectContaining({ displayName: "Alice", program: "CS", interests: ["chess"] }),
+        update: expect.objectContaining({
+          displayName: "Alice",
+          program: "CS",
+          interests: ["chess"],
+        }),
       }),
     );
   });
@@ -82,20 +102,32 @@ describe("PUT /api/profile/me", () => {
 
 describe("avatar", () => {
   it("rejects non-image data", async () => {
-    const res = await request(app).put("/api/profile/me/avatar").set("Authorization", auth).send({ image: "hello" });
+    const res = await request(app)
+      .put("/api/profile/me/avatar")
+      .set("Authorization", auth)
+      .send({ image: "hello" });
     expect(res.status).toBe(400);
   });
 
   it("rejects images over 300 KB", async () => {
     const big = `data:image/png;base64,${"A".repeat(500 * 1024)}`;
-    const res = await request(app).put("/api/profile/me/avatar").set("Authorization", auth).send({ image: big });
+    const res = await request(app)
+      .put("/api/profile/me/avatar")
+      .set("Authorization", auth)
+      .send({ image: big });
     expect(res.status).toBe(400);
   });
 
   it("saves a valid avatar", async () => {
     prisma.user.findUnique.mockResolvedValue(user);
-    prisma.profile.upsert.mockResolvedValue({ userId: "alice", avatarUrl: tinyPng });
-    const res = await request(app).put("/api/profile/me/avatar").set("Authorization", auth).send({ image: tinyPng });
+    prisma.profile.upsert.mockResolvedValue({
+      userId: "alice",
+      avatarUrl: tinyPng,
+    });
+    const res = await request(app)
+      .put("/api/profile/me/avatar")
+      .set("Authorization", auth)
+      .send({ image: tinyPng });
     expect(res.status).toBe(200);
     expect(prisma.profile.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: { avatarUrl: tinyPng } }),
@@ -104,27 +136,46 @@ describe("avatar", () => {
 
   it("DELETE returns 404 without a profile", async () => {
     prisma.profile.findUnique.mockResolvedValue(null);
-    expect((await request(app).delete("/api/profile/me/avatar").set("Authorization", auth)).status).toBe(404);
+    expect(
+      (
+        await request(app)
+          .delete("/api/profile/me/avatar")
+          .set("Authorization", auth)
+      ).status,
+    ).toBe(404);
   });
 
   it("DELETE clears the avatar", async () => {
     prisma.profile.findUnique.mockResolvedValue({ userId: "alice" });
-    prisma.profile.update.mockResolvedValue({ userId: "alice", avatarUrl: null });
-    const res = await request(app).delete("/api/profile/me/avatar").set("Authorization", auth);
+    prisma.profile.update.mockResolvedValue({
+      userId: "alice",
+      avatarUrl: null,
+    });
+    const res = await request(app)
+      .delete("/api/profile/me/avatar")
+      .set("Authorization", auth);
     expect(res.status).toBe(200);
-    expect(prisma.profile.update).toHaveBeenCalledWith({ where: { userId: "alice" }, data: { avatarUrl: null } });
+    expect(prisma.profile.update).toHaveBeenCalledWith({
+      where: { userId: "alice" },
+      data: { avatarUrl: null },
+    });
   });
 });
 
 describe("GET /api/profile/:userId", () => {
   it("404s for inactive users", async () => {
     prisma.user.findUnique.mockResolvedValue({ ...user, status: "SUSPENDED" });
-    expect((await request(app).get("/api/profile/bob").set("Authorization", auth)).status).toBe(404);
+    expect(
+      (await request(app).get("/api/profile/bob").set("Authorization", auth))
+        .status,
+    ).toBe(404);
   });
 
   it("returns a public view without email", async () => {
     prisma.user.findUnique.mockResolvedValue(user);
-    const res = await request(app).get("/api/profile/alice").set("Authorization", auth);
+    const res = await request(app)
+      .get("/api/profile/alice")
+      .set("Authorization", auth);
     expect(res.status).toBe(200);
     expect(res.body.displayName).toBe("alice");
     expect(res.body.email).toBeUndefined();
@@ -133,11 +184,15 @@ describe("GET /api/profile/:userId", () => {
 
 describe("GET /api/profile/search", () => {
   it("requires auth", async () => {
-    expect((await request(app).get("/api/profile/search?q=al")).status).toBe(401);
+    expect((await request(app).get("/api/profile/search?q=al")).status).toBe(
+      401,
+    );
   });
 
   it("returns nothing for queries shorter than 2 characters", async () => {
-    const res = await request(app).get("/api/profile/search?q=a").set("Authorization", auth);
+    const res = await request(app)
+      .get("/api/profile/search?q=a")
+      .set("Authorization", auth);
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
     expect(prisma.user.findMany).not.toHaveBeenCalled();
@@ -145,30 +200,197 @@ describe("GET /api/profile/search", () => {
 
   it("is not shadowed by /:userId", async () => {
     prisma.user.findMany.mockResolvedValue([]);
-    await request(app).get("/api/profile/search?q=bob").set("Authorization", auth);
+    await request(app)
+      .get("/api/profile/search?q=bob")
+      .set("Authorization", auth);
     expect(prisma.user.findMany).toHaveBeenCalled();
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
   it("searches active users other than the caller", async () => {
     prisma.user.findMany.mockResolvedValue([]);
-    await request(app).get("/api/profile/search?q=bob").set("Authorization", auth);
+    await request(app)
+      .get("/api/profile/search?q=bob")
+      .set("Authorization", auth);
     const { where, take } = prisma.user.findMany.mock.calls[0][0];
     expect(where.status).toBe("ACTIVE");
     expect(where.id).toEqual({ not: "alice" });
-    expect(take).toBe(20);
+    expect(take).toBe(21);
   });
 
   it("returns public fields only, with a fallback display name", async () => {
     prisma.user.findMany.mockResolvedValue([
-      { ...user, id: "b1", email: "bob@fanshaweonline.ca", passwordHash: "secret", profile: { displayName: "Bob B", avatarUrl: "x", program: "CS", bio: "private-ish" } },
+      {
+        ...user,
+        id: "b1",
+        email: "bob@fanshaweonline.ca",
+        passwordHash: "secret",
+        profile: {
+          displayName: "Bob B",
+          avatarUrl: "x",
+          program: "CS",
+          bio: "private-ish",
+        },
+      },
       { ...user, id: "c1", email: "carol@fanshaweonline.ca", profile: null },
     ]);
-    const res = await request(app).get("/api/profile/search?q=bo").set("Authorization", auth);
+    const res = await request(app)
+      .get("/api/profile/search?q=bo")
+      .set("Authorization", auth);
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
-      { id: "b1", displayName: "Bob B", avatarUrl: "x", program: "CS" },
-      { id: "c1", displayName: "carol", avatarUrl: null, program: null },
+      {
+        id: "b1",
+        displayName: "Bob B",
+        avatarUrl: "x",
+        program: "CS",
+        courses: [],
+        interests: [],
+      },
+      {
+        id: "c1",
+        displayName: "carol",
+        avatarUrl: null,
+        program: null,
+        courses: [],
+        interests: [],
+      },
     ]);
+  });
+
+  it.each([
+    [
+      "program=computer",
+      { program: { contains: "computer", mode: "insensitive" } },
+    ],
+    ["course=info-5103", { courses: { has: "INFO5103" } }],
+    ["interest=CHESS", { interests: { has: "chess" } }],
+  ])("supports a filter without a name: %s", async (query, expected) => {
+    prisma.user.findMany.mockResolvedValue([]);
+    const res = await request(app)
+      .get(`/api/profile/search?${query}`)
+      .set("Authorization", auth);
+    expect(res.status).toBe(200);
+    const args = prisma.user.findMany.mock.calls[0][0];
+    expect(args.where.profile).toEqual({ is: expected });
+    expect(args.where.OR).toBeUndefined();
+    expect(args.select).not.toHaveProperty("passwordHash");
+  });
+
+  it("combines name, program, course and interest instead of broadening matches", async () => {
+    prisma.user.findMany.mockResolvedValue([]);
+    await request(app)
+      .get(
+        "/api/profile/search?q=bo&program=Computing&course=info%205103&interest=Chess",
+      )
+      .set("Authorization", auth);
+    expect(prisma.user.findMany.mock.calls[0][0].where).toMatchObject({
+      status: "ACTIVE",
+      id: { not: "alice" },
+      OR: expect.any(Array),
+      profile: {
+        is: {
+          program: { contains: "Computing", mode: "insensitive" },
+          courses: { has: "INFO5103" },
+          interests: { has: "chess" },
+        },
+      },
+    });
+  });
+
+  it.each([
+    "program=" + "a".repeat(101),
+    "interest=" + "a".repeat(31),
+    "course=%24regex",
+    "page=0",
+    "page=1.2",
+    "q=a&q=b",
+    "program[x]=a",
+  ])("rejects invalid search input %s", async (query) => {
+    expect(
+      (
+        await request(app)
+          .get(`/api/profile/search?${query}`)
+          .set("Authorization", auth)
+      ).status,
+    ).toBe(400);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("paginates with stable ordering and indicates more results", async () => {
+    prisma.user.findMany.mockResolvedValue(
+      Array.from({ length: 21 }, (_, index) => ({
+        ...user,
+        id: String(index),
+      })),
+    );
+    const res = await request(app)
+      .get("/api/profile/search?interest=chess&page=2")
+      .set("Authorization", auth);
+    expect(res.body).toHaveLength(20);
+    expect(res.headers["x-has-more"]).toBe("true");
+    expect(prisma.user.findMany.mock.calls[0][0]).toMatchObject({
+      skip: 20,
+      take: 21,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+  });
+});
+
+describe("profile courses and interests", () => {
+  it("normalizes and deduplicates searchable course codes and interests", async () => {
+    prisma.profile.upsert.mockResolvedValue({
+      displayName: "Alice",
+      courses: ["INFO5103"],
+      interests: ["chess"],
+    });
+    const res = await request(app)
+      .put("/api/profile/me")
+      .set("Authorization", auth)
+      .send({
+        displayName: " Alice ",
+        courses: [" info-5103 ", "INFO 5103"],
+        interests: [" Chess ", "CHESS"],
+      });
+    expect(res.status).toBe(200);
+    expect(prisma.profile.upsert.mock.calls[0][0].update).toMatchObject({
+      displayName: "Alice",
+      courses: ["INFO5103"],
+      interests: ["chess"],
+    });
+  });
+
+  it("preserves courses if older clients omit them, and allows explicitly clearing them", async () => {
+    prisma.profile.upsert.mockResolvedValue({ displayName: "Alice" });
+    await request(app)
+      .put("/api/profile/me")
+      .set("Authorization", auth)
+      .send({ displayName: "Alice" });
+    expect(prisma.profile.upsert.mock.calls[0][0].update).not.toHaveProperty(
+      "courses",
+    );
+    await request(app)
+      .put("/api/profile/me")
+      .set("Authorization", auth)
+      .send({ displayName: "Alice", courses: [] });
+    expect(prisma.profile.upsert.mock.calls[1][0].update.courses).toEqual([]);
+  });
+
+  it.each([
+    { courses: [""] },
+    { courses: ["<script>"] },
+    { courses: Array(21).fill("INFO5103") },
+    { courses: ["x".repeat(31)] },
+    { interests: [" "] },
+  ])("rejects invalid course/tag input: %j", async (fields) => {
+    expect(
+      (
+        await request(app)
+          .put("/api/profile/me")
+          .set("Authorization", auth)
+          .send({ displayName: "Alice", ...fields })
+      ).status,
+    ).toBe(400);
+    expect(prisma.profile.upsert).not.toHaveBeenCalled();
   });
 });

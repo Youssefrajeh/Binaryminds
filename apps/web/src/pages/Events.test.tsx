@@ -5,13 +5,14 @@ import { EventsPage } from "./EventsPage";
 import { EventFormPage } from "./EventFormPage";
 
 vi.mock("../components/Nav", () => ({ Nav: () => <nav /> }));
-const { get, post, put, patch } = vi.hoisted(() => ({
+const { get, post, put, patch, remove } = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
   patch: vi.fn(),
+  remove: vi.fn(),
 }));
-vi.mock("../lib/api", () => ({ default: { get, post, put, patch } }));
+vi.mock("../lib/api", () => ({ default: { get, post, put, patch, delete: remove } }));
 const auth = vi.hoisted(() => ({
   user: { id: "org", role: "ORGANIZER", email: "o@x.ca", profile: { displayName: "Events Club" } },
 }));
@@ -77,7 +78,7 @@ describe("EventsPage", () => {
     });
     renderAt("/events");
     await screen.findByText("Event soon");
-    const titles = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const titles = screen.getAllByRole("heading", { level: 2, name: /^Event / }).map((h) => h.textContent);
     expect(titles).toEqual(["Event soon", "Event later"]);
     expect(screen.getAllByText("Events Club")).toHaveLength(2);
   });
@@ -102,6 +103,119 @@ describe("EventsPage", () => {
     renderAt("/events");
     await screen.findByText("Event a");
     expect(screen.queryByRole("link", { name: /Create event/ })).toBeNull();
+  });
+});
+
+describe("event RSVPs and saved view", () => {
+  it("RSVPs, updates the card state, and allows cancellation", async () => {
+    auth.user.id = "student";
+    auth.user.role = "STUDENT";
+    get.mockResolvedValue({ data: [event("a", 1, { isRsvped: false })] });
+    post.mockResolvedValue({ data: { isRsvped: true } });
+    remove.mockResolvedValue({ status: 204 });
+    renderAt("/events");
+    fireEvent.click(await screen.findByRole("button", { name: "RSVP to Event a" }));
+    expect(await screen.findByRole("button", { name: "Cancel RSVP for Event a" })).toBeTruthy();
+    expect(post).toHaveBeenCalledWith("/events/a/rsvp");
+    expect(screen.getByText("RSVP saved")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel RSVP for Event a" }));
+    expect(await screen.findByRole("button", { name: "RSVP to Event a" })).toBeTruthy();
+    expect(remove).toHaveBeenCalledWith("/events/a/rsvp");
+  });
+
+  it("opens saved events with a button and returns with Back to events", async () => {
+    get.mockResolvedValueOnce({ data: [event("a", 1)] });
+    renderAt("/events");
+    await screen.findByText("Event a");
+    get.mockResolvedValueOnce({ data: [event("saved", 1, { isRsvped: true })] });
+    expect(screen.queryByRole("navigation", { name: "Event sections" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Saved Events" }));
+    expect(await screen.findByText("Event saved")).toBeTruthy();
+    expect(get).toHaveBeenLastCalledWith("/events/saved", { params: {} });
+    expect(screen.getByRole("button", { name: "Cancel RSVP for Event saved" })).toBeTruthy();
+    expect(screen.queryByText("Event a")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Saved Events" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Saved Events" })).toBeNull();
+    get.mockResolvedValueOnce({ data: [event("a", 1)] });
+    fireEvent.click(screen.getByRole("link", { name: "Back to events" }));
+    expect(await screen.findByText("Event a")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Campus Events" })).toBeTruthy();
+    expect(get).toHaveBeenLastCalledWith("/events", { params: {} });
+  });
+
+  it("shows cancelled and past saved events and removes a cancelled RSVP from Saved Events", async () => {
+    const cancelled = event("cancelled", 1, { status: "CANCELLED", isRsvped: true });
+    const past = event("past", -1, { isRsvped: true });
+    get.mockResolvedValueOnce({ data: [cancelled, past] });
+    remove.mockResolvedValue({ status: 204 });
+    renderAt("/events?view=saved");
+    expect(await screen.findByText("Cancelled")).toBeTruthy();
+    expect(screen.getByText("Started / past event")).toBeTruthy();
+    get.mockResolvedValueOnce({ data: [past] });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel RSVP for Event cancelled" }));
+    await waitFor(() => expect(screen.queryByText("Event cancelled")).toBeNull());
+    expect(await screen.findByText("Event past")).toBeTruthy();
+    expect(remove).toHaveBeenCalledWith("/events/cancelled/rsvp");
+    expect(screen.queryByRole("button", { name: /^RSVP to/ })).toBeNull();
+  });
+
+  it("shows a helpful empty saved view", async () => {
+    get.mockResolvedValue({ data: [] });
+    renderAt("/events?view=saved");
+    expect(await screen.findByText("No saved events")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Browse events" })).toBeTruthy();
+  });
+
+  it("keeps saved-events pagination on the saved endpoint", async () => {
+    get.mockResolvedValueOnce({ data: [event("a", 1, { isRsvped: true })], headers: { "x-has-more": "true" } });
+    renderAt("/events?view=saved");
+    await screen.findByText("Event a");
+    get.mockResolvedValueOnce({ data: [event("b", 2, { isRsvped: true })] });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Event b")).toBeTruthy();
+    expect(get).toHaveBeenLastCalledWith("/events/saved", { params: { page: 2 } });
+    expect(screen.getByText("Page 2")).toBeTruthy();
+  });
+
+  it("preserves the RSVP state on failure and supports retry", async () => {
+    get.mockResolvedValue({ data: [event("a", 1, { isRsvped: true })] });
+    remove.mockRejectedValueOnce({ response: { data: { error: "Please retry" } } });
+    remove.mockResolvedValueOnce({ status: 204 });
+    renderAt("/events");
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel RSVP for Event a" }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Please retry");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel RSVP for Event a" }));
+    expect(await screen.findByRole("button", { name: "RSVP to Event a" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("disables RSVP while saving to prevent repeated submissions", async () => {
+    get.mockResolvedValue({ data: [event("a", 1)] });
+    let finish!: (value: object) => void;
+    post.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    renderAt("/events");
+    const button = await screen.findByRole("button", { name: "RSVP to Event a" });
+    fireEvent.click(button);
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(post).toHaveBeenCalledTimes(1);
+    finish({ data: { isRsvped: true } });
+    expect(await screen.findByRole("button", { name: "Cancel RSVP for Event a" })).toBeTruthy();
+  });
+
+  it("does not navigate back to Saved Events when a pending cancellation finishes after leaving", async () => {
+    get.mockResolvedValueOnce({ data: [event("a", 1, { isRsvped: true })] });
+    let finish!: (value: object) => void;
+    remove.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    renderAt("/events?view=saved&page=2");
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel RSVP for Event a" }));
+    get.mockResolvedValueOnce({ data: [event("upcoming", 1)] });
+    fireEvent.click(screen.getByRole("link", { name: "Back to events" }));
+    await screen.findByText("Event upcoming");
+    finish({ status: 204 });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Saved Events" })).toBeTruthy());
+    expect(screen.queryByText("Event a")).toBeNull();
+    expect(screen.queryByText("Page 2")).toBeNull();
   });
 });
 

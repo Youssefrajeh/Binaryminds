@@ -12,11 +12,14 @@ export function createPrismaMock() {
     category: { findMany: vi.fn(), findUnique: vi.fn() },
     listing: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     event: { findMany: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    rsvp: { upsert: vi.fn(), deleteMany: vi.fn() },
     lostFoundPost: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     report: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
     moderationAction: { create: vi.fn() },
     $transaction: vi.fn(),
     participant: {
+      upsert: vi.fn(),
+      createMany: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
@@ -43,6 +46,8 @@ export function createPrismaMock() {
       deleteMany: vi.fn(),
     },
     studyGroup: {
+      updateMany: vi.fn(),
+      update: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
       findUniqueOrThrow: vi.fn(),
@@ -50,6 +55,7 @@ export function createPrismaMock() {
       delete: vi.fn(),
     },
     studyGroupMember: {
+      upsert: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       deleteMany: vi.fn(),

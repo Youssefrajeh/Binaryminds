@@ -1,19 +1,14 @@
-import type { StudyGroup } from "@prisma/client";
+import type { Prisma, StudyGroup } from "@prisma/client";
 import { prisma } from "./prisma.js";
 import { groupKeyFor } from "./conversations.js";
-import { emitToUsers, removeUserFromConversationRoom } from "../socket/io.js";
 
 /* ------------------------------------------------------------------ */
 /*  Keep each study group's chat in step with its membership           */
 /* ------------------------------------------------------------------ */
 
-async function findGroupConversation(studyGroupId: string) {
-  return prisma.conversation.findUnique({ where: { directKey: groupKeyFor(studyGroupId) } });
-}
-
 /** Creates the group's conversation with the creator as its first member */
-export async function createGroupConversation(group: StudyGroup, creatorId: string) {
-  const conversation = await prisma.conversation.create({
+export async function createGroupConversation(group: StudyGroup, creatorId: string, db: Prisma.TransactionClient = prisma) {
+  return db.conversation.create({
     data: {
       type: "GROUP",
       status: "ACCEPTED",
@@ -24,47 +19,73 @@ export async function createGroupConversation(group: StudyGroup, creatorId: stri
     },
   });
 
-  emitToUsers([creatorId], "conversation:updated", { conversationId: conversation.id });
-  return conversation;
 }
 
-/** Adds a new study group member to the group chat (creating the chat if it is missing) */
-export async function addMemberToGroupConversation(group: StudyGroup, userId: string) {
-  const conversation = await findGroupConversation(group.id);
-  if (!conversation) {
-    return createGroupConversation(group, userId);
-  }
+export class StudyGroupError extends Error {
+  readonly status = 404;
+}
 
-  const existing = await prisma.participant.findUnique({
-    where: { conversationId_userId: { conversationId: conversation.id, userId } },
+async function lockGroup(db: Prisma.TransactionClient, id: string) {
+  // MongoDB increments of missing/null fields need an explicit starting value.
+  await db.studyGroup.updateMany({
+    where: { id, OR: [{ membershipVersion: { isSet: false } }, { membershipVersion: null }] },
+    data: { membershipVersion: 0 },
   });
-  if (!existing) {
-    // Earlier history counts as read so joining doesn't flood the unread badge
-    await prisma.participant.create({
-      data: { conversationId: conversation.id, userId, lastReadAt: new Date() },
-    });
+  return db.studyGroup.update({ where: { id }, data: { membershipVersion: { increment: 1 } } });
+}
+
+async function membershipTransaction<T>(work: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await prisma.$transaction(work); }
+    catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      if (attempt < 3 && (code === "P2034" || code === "P2002")) continue;
+      if (code === "P2025") throw new StudyGroupError("Study group not found");
+      throw err;
+    }
   }
-
-  emitToUsers([userId], "conversation:updated", { conversationId: conversation.id });
-  return conversation;
 }
 
-/** Removes a member who left the study group from its chat */
-export async function removeMemberFromGroupConversation(studyGroupId: string, userId: string) {
-  const conversation = await findGroupConversation(studyGroupId);
-  if (!conversation) return;
-
-  await prisma.participant.deleteMany({ where: { conversationId: conversation.id, userId } });
-  removeUserFromConversationRoom(userId, conversation.id);
-  emitToUsers([userId], "conversation:removed", { conversationId: conversation.id });
+/** A shared group write serializes joins/leaves, including last-member deletion. */
+export async function joinStudyGroup(studyGroupId: string, userId: string) {
+  return membershipTransaction(async (db) => {
+    const group = await lockGroup(db, studyGroupId);
+    await db.studyGroupMember.upsert({
+      where: { studyGroupId_userId: { studyGroupId, userId } },
+      create: { studyGroupId, userId }, update: {},
+    });
+    let conversation = await db.conversation.findUnique({ where: { directKey: groupKeyFor(studyGroupId) } });
+    if (!conversation) {
+      conversation = await createGroupConversation(group, userId, db);
+      // Repair older groups whose chat is missing without excluding existing members.
+      const members = await db.studyGroupMember.findMany({ where: { studyGroupId, userId: { not: userId } }, select: { userId: true } });
+      if (members.length) await db.participant.createMany({ data: members.map((member) => ({ conversationId: conversation!.id, userId: member.userId, lastReadAt: new Date() })) });
+    } else {
+      await db.participant.upsert({
+        where: { conversationId_userId: { conversationId: conversation.id, userId } },
+        create: { conversationId: conversation.id, userId, lastReadAt: new Date() }, update: {},
+      });
+    }
+    return conversation;
+  });
 }
 
-/** Deletes the chat of a study group that no longer exists */
-export async function deleteGroupConversation(studyGroupId: string) {
-  const conversation = await findGroupConversation(studyGroupId);
-  if (!conversation) return;
-
-  await prisma.message.deleteMany({ where: { conversationId: conversation.id } });
-  await prisma.participant.deleteMany({ where: { conversationId: conversation.id } });
-  await prisma.conversation.delete({ where: { id: conversation.id } });
+export async function leaveStudyGroup(studyGroupId: string, userId: string) {
+  return membershipTransaction(async (db) => {
+    await lockGroup(db, studyGroupId);
+    const { count } = await db.studyGroupMember.deleteMany({ where: { studyGroupId, userId } });
+    if (!count) throw new StudyGroupError("You are not a member of this study group");
+    const conversation = await db.conversation.findUnique({ where: { directKey: groupKeyFor(studyGroupId) } });
+    if (conversation) await db.participant.deleteMany({ where: { conversationId: conversation.id, userId } });
+    const remaining = await db.studyGroupMember.count({ where: { studyGroupId } });
+    if (remaining === 0) {
+      if (conversation) {
+        await db.message.deleteMany({ where: { conversationId: conversation.id } });
+        await db.participant.deleteMany({ where: { conversationId: conversation.id } });
+        await db.conversation.delete({ where: { id: conversation.id } });
+      }
+      await db.studyGroup.delete({ where: { id: studyGroupId } });
+    }
+    return { conversationId: conversation?.id ?? null, deleted: remaining === 0 };
+  });
 }

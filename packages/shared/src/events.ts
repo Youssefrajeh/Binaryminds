@@ -12,6 +12,7 @@ export interface CampusEventDto {
   location: string;
   imageUrl: string | null;
   status: EventStatus;
+  isRsvped?: boolean;
   organizer?: { id: string; profile?: { displayName: string; avatarUrl?: string | null } | null };
 }
 export interface EventInput {

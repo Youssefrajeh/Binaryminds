@@ -126,6 +126,11 @@ model Profile {
   bio         String?
   avatarUrl   String?
   interests   String[]
+  courses     String[] @default([])
+
+  @@index([program])
+  @@index([courses])
+  @@index([interests])
 }
 
 model Category {
@@ -242,8 +247,11 @@ model StudyGroup {
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+  membershipVersion Int? @default(0)
 
   members StudyGroupMember[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model StudyGroupMember {
@@ -256,6 +264,7 @@ model StudyGroupMember {
 
   @@unique([studyGroupId, userId])
   @@index([userId])
+  @@index([studyGroupId, joinedAt, id])
 }
 
 model LostFoundPost {
@@ -309,6 +318,7 @@ model Rsvp {
   respondedAt DateTime @default(now())
 
   @@unique([eventId, userId])
+  @@index([userId, eventId])
 }
 
 model Report {

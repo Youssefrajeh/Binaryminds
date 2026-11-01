@@ -38,14 +38,211 @@ beforeEach(async () => {
   await prisma.message.deleteMany();
   await prisma.participant.deleteMany();
   await prisma.conversation.deleteMany();
+  await prisma.studyGroupMember.deleteMany();
+  await prisma.studyGroup.deleteMany();
   await prisma.listingImage.deleteMany();
   await prisma.listing.deleteMany();
+  await prisma.rsvp.deleteMany();
   await prisma.event.deleteMany();
   await prisma.user.update({ where: { id: "student" }, data: { role: "STUDENT" } });
+  await Promise.all(["admin", "student", "other"].map((id) => prisma.profile.update({
+    where: { userId: id }, data: { displayName: `${id} Test`, program: null, courses: [], interests: [] },
+  })));
 });
 afterAll(async () => { await prisma?.$disconnect(); await database?.stop(); vi.doUnmock("../lib/prisma.js"); }, 30000);
 
 describe("role assignment and events persisted in MongoDB", () => {
+  it("discovers groups, joins once under concurrent retries, lists public members, and revokes chat access on leave", async () => {
+    const created = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({ name: "Group membership", courseCode: "INFO5103", description: "Revision together" });
+    const id = created.body.id;
+    const path = `/api/study-groups/${id}`;
+    const otherToken = token("other");
+    expect((await request(app).get(path).set("Authorization", otherToken)).body).toMatchObject({ id, isMember: false, memberCount: 1, conversationId: null });
+    expect((await request(app).get("/api/study-groups").set("Authorization", otherToken)).body[0].id).toBe(id);
+    const joined = await Promise.all([1, 2].map(() => request(app).post(`${path}/join`).set("Authorization", otherToken).send({ userId: "admin" })));
+    expect(joined.map((response) => response.status)).toEqual([200, 200]);
+    expect(await prisma.studyGroupMember.count({ where: { studyGroupId: id } })).toBe(2);
+    expect(await prisma.participant.count({ where: { conversationId: created.body.conversationId } })).toBe(2);
+    expect((await request(app).get(path).set("Authorization", otherToken)).body).toMatchObject({ isMember: true, memberCount: 2, conversationId: created.body.conversationId });
+    const members = await request(app).get(`${path}/members`).set("Authorization", adminToken);
+    expect(members.status).toBe(200);
+    expect(members.body.map((member: { id: string }) => member.id).sort()).toEqual(["other", "student"]);
+    expect(members.body.find((member: { id: string }) => member.id === "student").isCreator).toBe(true);
+    expect(JSON.stringify(members.body)).not.toMatch(/@fanshaweonline|passwordHash|emailVerifiedAt/);
+    expect((await request(app).post(`${path}/leave`).set("Authorization", adminToken)).status).toBe(404);
+    const left = await request(app).post(`${path}/leave`).set("Authorization", studentToken);
+    expect(left.body.deleted).toBe(false);
+    expect((await request(app).get(`/api/conversations/${created.body.conversationId}`).set("Authorization", studentToken)).status).toBe(404);
+    await expect(sendMessage("student", { conversationId: created.body.conversationId, text: "Not allowed after leaving" })).rejects.toThrow();
+    expect((await request(app).get(`${path}/members`).set("Authorization", otherToken)).body.map((member: { id: string }) => member.id)).toEqual(["other"]);
+    expect((await request(app).post(`${path}/join`).set("Authorization", studentToken)).status).toBe(200);
+    await sendMessage("student", { conversationId: created.body.conversationId, text: "Rejoined" });
+    const departures = await Promise.all([studentToken, otherToken].map((auth) => request(app).post(`${path}/leave`).set("Authorization", auth)));
+    expect(departures.map((response) => response.status)).toEqual([200, 200]);
+    expect(await prisma.studyGroup.count({ where: { id } })).toBe(0);
+    expect(await prisma.studyGroupMember.count({ where: { studyGroupId: id } })).toBe(0);
+    expect(await prisma.conversation.count({ where: { id: created.body.conversationId } })).toBe(0);
+    expect(await prisma.message.count({ where: { conversationId: created.body.conversationId } })).toBe(0);
+  });
+
+  it("keeps membership/chat consistent when the final departure races a new join", async () => {
+    const created = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({ name: "Concurrent membership", courseCode: "INFO5103", description: "Race regression" });
+    const id = created.body.id;
+    const [left, joined] = await Promise.all([
+      request(app).post(`/api/study-groups/${id}/leave`).set("Authorization", studentToken),
+      request(app).post(`/api/study-groups/${id}/join`).set("Authorization", token("other")),
+    ]);
+    expect(left.status).toBe(200);
+    expect([200, 404]).toContain(joined.status);
+    const memberships = await prisma.studyGroupMember.findMany({ where: { studyGroupId: id } });
+    const chat = await prisma.conversation.findUnique({ where: { directKey: `group:${id}` }, include: { participants: true } });
+    if (joined.status === 200) {
+      expect(memberships.map((member) => member.userId)).toEqual(["other"]);
+      expect(chat?.participants.map((participant) => participant.userId)).toEqual(["other"]);
+      expect(await prisma.studyGroup.count({ where: { id } })).toBe(1);
+    } else {
+      expect(memberships).toEqual([]);
+      expect(chat).toBeNull();
+      expect(await prisma.studyGroup.count({ where: { id } })).toBe(0);
+    }
+  });
+
+  it("rolls back joins and leaves if synchronizing chat membership fails", async () => {
+    const created = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({ name: "Atomic membership", courseCode: "INFO5103", description: "Rollback test" });
+    const transaction = prisma.$transaction.bind(prisma);
+    for (const action of ["join", "leave"] as const) {
+      const method = action === "join" ? "upsert" : "deleteMany";
+      const failure = vi.spyOn(prisma, "$transaction").mockImplementationOnce(async (operation: unknown) => {
+        if (typeof operation !== "function") throw new Error("Expected interactive transaction");
+        return transaction(async (db) => operation({ ...db, participant: { ...db.participant, [method]: async () => { throw new Error("Simulated chat membership failure"); } } }));
+      });
+      try {
+        const auth = action === "join" ? token("other") : studentToken;
+        expect((await request(app).post(`/api/study-groups/${created.body.id}/${action}`).set("Authorization", auth)).status).toBe(500);
+        expect((await prisma.studyGroupMember.findMany({ where: { studyGroupId: created.body.id } })).map((member) => member.userId)).toEqual(["student"]);
+        expect((await prisma.participant.findMany({ where: { conversationId: created.body.conversationId } })).map((participant) => participant.userId)).toEqual(["student"]);
+      } finally { failure.mockRestore(); }
+    }
+  });
+
+  it("repairs legacy groups without a chat or membership revision for all members", async () => {
+    const group = await prisma.studyGroup.create({ data: { name: "Legacy group", courseCode: "INFO5103", createdById: "student", members: { create: { userId: "student" } } } });
+    await prisma.$runCommandRaw({ update: "StudyGroup", updates: [{ q: { _id: group.id }, u: { $unset: { membershipVersion: "" } } }] });
+    const joined = await request(app).post(`/api/study-groups/${group.id}/join`).set("Authorization", token("other"));
+    expect(joined.status).toBe(200);
+    const participants = await prisma.participant.findMany({ where: { conversationId: joined.body.conversationId } });
+    expect(participants.map((participant) => participant.userId).sort()).toEqual(["other", "student"]);
+    expect((await prisma.studyGroup.findUniqueOrThrow({ where: { id: group.id } })).membershipVersion).toBe(1);
+    await prisma.studyGroup.update({ where: { id: group.id }, data: { membershipVersion: null } });
+    expect((await request(app).post(`/api/study-groups/${group.id}/join`).set("Authorization", token("other"))).status).toBe(200);
+    expect((await prisma.studyGroup.findUniqueOrThrow({ where: { id: group.id } })).membershipVersion).toBe(1);
+  });
+
+  it("persists a study group, its creator membership and accepted chat, then reloads them", async () => {
+    const response = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({
+      name: " Exam revision ", courseCode: " info-5103 ", description: " Review chapters together. ", createdById: "other", members: [{ userId: "admin" }],
+    });
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ name: "Exam revision", courseCode: "INFO5103", description: "Review chapters together.", memberCount: 1, isMember: true });
+    expect(response.body.conversationId).toBeTruthy();
+    const stored = await prisma.studyGroup.findUniqueOrThrow({ where: { id: response.body.id }, include: { members: true } });
+    expect(stored).toMatchObject({ createdById: "student", name: "Exam revision", courseCode: "INFO5103", description: "Review chapters together." });
+    expect(stored.members.map((member) => member.userId)).toEqual(["student"]);
+    const chat = await prisma.conversation.findUniqueOrThrow({ where: { id: response.body.conversationId }, include: { participants: true } });
+    expect(chat).toMatchObject({ type: "GROUP", status: "ACCEPTED", studyGroupId: stored.id, name: stored.name });
+    expect(chat.participants.map((participant) => participant.userId)).toEqual(["student"]);
+    const reloaded = await request(app).get("/api/study-groups").set("Authorization", studentToken);
+    expect(reloaded.body).toEqual([response.body]);
+    const otherView = await request(app).get("/api/study-groups").set("Authorization", adminToken);
+    expect(otherView.body[0]).toMatchObject({ id: stored.id, isMember: false, conversationId: null });
+    expect((await request(app).get(`/api/conversations/${chat.id}`).set("Authorization", adminToken)).status).toBe(404);
+    const sent = await sendMessage("student", { conversationId: chat.id, text: "Welcome to our study group!" });
+    expect(sent.message.text).toBe("Welcome to our study group!");
+  });
+
+  it("rolls back study-group and membership data if chat creation fails", async () => {
+    const transaction = prisma.$transaction.bind(prisma);
+    const failure = vi.spyOn(prisma, "$transaction").mockImplementationOnce(async (operation: unknown) => {
+      if (typeof operation !== "function") throw new Error("Expected interactive transaction");
+      return transaction(async (db) => operation({ ...db, conversation: { ...db.conversation, create: async () => { throw new Error("Simulated chat creation failure"); } } }));
+    });
+    try {
+      const response = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({ name: "Must roll back", courseCode: "INFO5103", description: "Atomic creation test" });
+      expect(response.status).toBe(500);
+      expect(await prisma.studyGroup.count()).toBe(0);
+      expect(await prisma.studyGroupMember.count()).toBe(0);
+      expect(await prisma.conversation.count()).toBe(0);
+    } finally { failure.mockRestore(); }
+  });
+
+  it("persists searchable profile fields and matches program, course, interest and combined filters in MongoDB", async () => {
+    const update = (id: string, data: object) => request(app).put("/api/profile/me").set("Authorization", token(id)).send(data);
+    const search = async (query: string) => {
+      const response = await request(app).get(`/api/profile/search?${query}`).set("Authorization", studentToken);
+      expect(response.status).toBe(200);
+      expect(JSON.stringify(response.body)).not.toMatch(/passwordHash|emailVerifiedAt|@fanshaweonline/);
+      return response.body;
+    };
+    expect((await update("student", { displayName: "Self", program: "Computer Programming", courses: ["INFO-5103"], interests: ["chess"] })).status).toBe(200);
+    expect((await update("other", { displayName: "Morgan Student", program: "Computer Programming", courses: ["info-5103", "INFO 5103"], interests: [" Chess ", "CHESS", "hiking"] })).status).toBe(200);
+    expect((await update("admin", { displayName: "Taylor Student", program: "Business", courses: ["INFO-5200"], interests: ["chess"] })).status).toBe(200);
+    expect(await prisma.profile.findUniqueOrThrow({ where: { userId: "other" } })).toMatchObject({ courses: ["INFO5103"], interests: ["chess", "hiking"] });
+    for (const query of ["program=computer", "course=info%205103", "q=morgan&program=COMPUTER&course=INFO-5103&interest=CHESS"]) {
+      expect((await search(query)).map((row: { id: string }) => row.id)).toEqual(["other"]);
+    }
+    expect((await search("interest=CHESS")).map((row: { id: string }) => row.id).sort()).toEqual(["admin", "other"]);
+    expect(await search("program=Business&course=INFO5103")).toEqual([]);
+    await update("other", { displayName: "Morgan Student", program: "Computer Programming", interests: ["chess"] });
+    expect((await search("course=INFO5103"))[0].courses).toEqual(["INFO5103"]);
+    await update("other", { displayName: "Morgan Student", courses: [] });
+    expect(await search("course=INFO5103")).toEqual([]);
+    await prisma.user.update({ where: { id: "admin" }, data: { status: "SUSPENDED" } });
+    try { expect(await search("program=Business")).toEqual([]); }
+    finally { await prisma.user.update({ where: { id: "admin" }, data: { status: "ACTIVE" } }); }
+    // Older MongoDB profiles can lack the new scalar-list field entirely.
+    await prisma.$runCommandRaw({ update: "Profile", updates: [{ q: { _id: "other" }, u: { $unset: { courses: "" } } }] });
+    expect((await search("q=Morgan"))[0].courses).toEqual([]);
+  });
+
+  it("persists unique RSVPs, shows saved events privately, and supports cancellation/re-RSVP", async () => {
+    const created = await request(app).post("/api/events").set("Authorization", token("other", "ORGANIZER")).send(futureEvent());
+    expect(created.status).toBe(201);
+    const id = created.body.id;
+    const path = `/api/events/${id}/rsvp`;
+    const responses = await Promise.all([1, 2].map(() => request(app).post(path).set("Authorization", studentToken)));
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(await prisma.rsvp.count({ where: { eventId: id, userId: "student" } })).toBe(1);
+    const browse = await request(app).get("/api/events").set("Authorization", studentToken);
+    expect(browse.body[0]).toMatchObject({ id, isRsvped: true });
+    expect(browse.body[0]).not.toHaveProperty("rsvps");
+    const saved = await request(app).get("/api/events/saved").set("Authorization", studentToken);
+    expect(saved.body).toHaveLength(1);
+    expect(saved.body[0]).toMatchObject({ id, title: created.body.title, isRsvped: true, organizer: { id: "other" } });
+    expect((await request(app).get("/api/events/saved").set("Authorization", adminToken)).body).toEqual([]);
+    expect((await request(app).delete(path).set("Authorization", adminToken)).status).toBe(204);
+    expect(await prisma.rsvp.count({ where: { eventId: id } })).toBe(1);
+    expect((await request(app).delete(path).set("Authorization", studentToken)).status).toBe(204);
+    expect((await request(app).delete(path).set("Authorization", studentToken)).status).toBe(204);
+    expect((await request(app).get("/api/events/saved").set("Authorization", studentToken)).body).toEqual([]);
+    expect((await request(app).get("/api/events").set("Authorization", studentToken)).body[0].isRsvped).toBe(false);
+    expect((await request(app).post(path).set("Authorization", studentToken)).status).toBe(200);
+    await request(app).patch(`/api/events/${id}/cancel`).set("Authorization", token("other", "ORGANIZER"));
+    expect((await request(app).get("/api/events/saved").set("Authorization", studentToken)).body[0].status).toBe("CANCELLED");
+    expect((await request(app).post(path).set("Authorization", studentToken)).status).toBe(409);
+    expect((await request(app).delete(path).set("Authorization", studentToken)).status).toBe(204);
+    expect(await prisma.rsvp.count({ where: { eventId: id } })).toBe(0);
+  });
+
+  it("keeps past saved events visible, blocks new RSVPs, and excludes drafts", async () => {
+    const past = await prisma.event.create({ data: { ...futureEvent(), startsAt: new Date("2020-01-01"), endsAt: null, organizerId: "other", status: "PUBLISHED" } });
+    const draft = await prisma.event.create({ data: { ...futureEvent(), organizerId: "other", status: "DRAFT" } });
+    for (const eventId of [past.id, draft.id]) await prisma.rsvp.create({ data: { eventId, userId: "student" } });
+    const saved = await request(app).get("/api/events/saved").set("Authorization", studentToken);
+    expect(saved.body.map((event: { id: string }) => event.id)).toEqual([past.id]);
+    expect((await request(app).post(`/api/events/${past.id}/rsvp`).set("Authorization", adminToken)).status).toBe(409);
+    expect((await request(app).post(`/api/events/${draft.id}/rsvp`).set("Authorization", studentToken)).status).toBe(404);
+  });
+
   it("lets an administrator promote a verified member to Administrator using an existing Student token", async () => {
     expect((await request(app).patch("/api/admin/users/student/role").set("Authorization", token("other", "ADMINISTRATOR")).send({ role: "ADMINISTRATOR" })).status).toBe(403);
     const promoted = await request(app).patch("/api/admin/users/student/role").set("Authorization", adminToken).send({ role: "ADMINISTRATOR" });

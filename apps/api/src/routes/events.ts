@@ -21,6 +21,14 @@ const pageSchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
+const includeAttendance = (userId: string) => ({
+  ...includeOrganizer,
+  rsvps: { where: { userId }, select: { id: true } },
+});
+function withAttendance(event: Prisma.EventGetPayload<{ include: ReturnType<typeof includeAttendance> }>) {
+  const { rsvps, ...details } = event;
+  return { ...details, isRsvped: Boolean(rsvps?.length) };
+}
 const eventSchema = z
   .object({
     title: z.string().trim().min(1, "Title is required").max(120),
@@ -61,15 +69,80 @@ eventsRouter.get("/", async (req, res) => {
     const rows = await prisma.event.findMany({
       where: { status: "PUBLISHED", startsAt: { gt: new Date() } },
       orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+      include: includeAttendance(req.user!.userId),
+      skip: (page - 1) * limit,
+      take: limit + 1,
+    });
+    res.set("X-Has-More", String(rows.length > limit));
+    res.json(rows.slice(0, limit).map(withAttendance));
+  } catch (err) {
+    console.error("Browse events error:", err);
+    res.status(500).json({ error: "Could not load events" });
+  }
+});
+
+eventsRouter.get("/saved", async (req, res) => {
+  const parsed = pageSchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid event page" });
+    return;
+  }
+  try {
+    const { page, limit } = parsed.data;
+    const rows = await prisma.event.findMany({
+      where: { rsvps: { some: { userId: req.user!.userId } }, status: { in: ["PUBLISHED", "CANCELLED"] } },
+      orderBy: [{ startsAt: "asc" }, { id: "asc" }],
       include: includeOrganizer,
       skip: (page - 1) * limit,
       take: limit + 1,
     });
     res.set("X-Has-More", String(rows.length > limit));
-    res.json(rows.slice(0, limit));
+    res.json(rows.slice(0, limit).map((event) => ({ ...event, isRsvped: true })));
   } catch (err) {
-    console.error("Browse events error:", err);
-    res.status(500).json({ error: "Could not load events" });
+    console.error("Saved events error:", err);
+    res.status(500).json({ error: "Could not load saved events" });
+  }
+});
+
+eventsRouter.post("/:id/rsvp", async (req, res) => {
+  try {
+    const event = await prisma.event.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true, startsAt: true },
+    });
+    if (!event || event.status === "DRAFT") {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    if (event.status !== "PUBLISHED" || event.startsAt <= new Date()) {
+      res.status(409).json({ error: "RSVP is only available for upcoming, published events" });
+      return;
+    }
+    const userId = req.user!.userId;
+    await prisma.rsvp.upsert({
+      where: { eventId_userId: { eventId: event.id, userId } },
+      create: { eventId: event.id, userId },
+      update: {},
+    });
+    res.json({ isRsvped: true });
+  } catch (err) {
+    // Concurrent first-time submissions can both reach the unique index.
+    if ((err as { code?: string }).code === "P2002") {
+      res.json({ isRsvped: true });
+      return;
+    }
+    console.error("RSVP error:", err);
+    res.status(500).json({ error: "Could not RSVP to the event" });
+  }
+});
+
+eventsRouter.delete("/:id/rsvp", async (req, res) => {
+  try {
+    await prisma.rsvp.deleteMany({ where: { eventId: req.params.id, userId: req.user!.userId } });
+    res.sendStatus(204);
+  } catch (err) {
+    console.error("Cancel RSVP error:", err);
+    res.status(500).json({ error: "Could not cancel your RSVP" });
   }
 });
 

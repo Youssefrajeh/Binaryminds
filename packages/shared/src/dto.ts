@@ -66,6 +66,7 @@ export interface ProfileDto {
   bio: string | null;
   avatarUrl: string | null;
   interests: string[];
+  courses?: string[];
 }
 
 /** What other students can see about a user */
@@ -77,6 +78,7 @@ export interface PublicProfileDto {
   yearOfStudy: number | null;
   bio: string | null;
   interests: string[];
+  courses?: string[];
   createdAt: string;
 }
 
@@ -86,6 +88,16 @@ export interface UpdateProfileInput {
   yearOfStudy?: number | null;
   bio?: string | null;
   interests?: string[];
+  courses?: string[];
+}
+
+export interface StudentSearchResultDto {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  program: string | null;
+  courses: string[];
+  interests: string[];
 }
 
 /* ---- Messaging ---- */
@@ -190,7 +202,21 @@ export interface StudyGroupDto {
 export interface CreateStudyGroupInput {
   name: string;
   courseCode: string;
-  description?: string | null;
+  description: string;
+}
+
+export interface StudyGroupDetailsDto extends StudyGroupDto {
+  createdById: string;
+}
+
+export interface StudyGroupMemberDto {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  program: string | null;
+  yearOfStudy: number | null;
+  joinedAt: string;
+  isCreator: boolean;
 }
 
 /* ---- API Error ---- */

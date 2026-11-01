@@ -233,6 +233,110 @@ Apply the additive User/Event query indexes with
 `npm run prisma:push -w @campushub/api` before rollout. Tests include a disposable MongoDB database for
 role assignment/revocation, event queries, ownership, edits, and cancellation.
 
+## Create a study group
+
+Open **Study groups** (`/study-groups`), choose **New group**, and enter a group
+name, course code, and description. All three are required for new groups; name
+and description are trimmed, and course codes normalize case, spaces and hyphens
+(`info-5103` becomes `INFO5103`). Existing groups without descriptions remain
+readable. The form preserves drafts on errors and prevents repeated submissions
+while saving.
+
+Authenticated `POST /api/study-groups` creates the group, adds the signed-in
+student as its first member, and creates an accepted group chat in one MongoDB
+transaction. If chat creation fails, none of those writes remain. The API derives
+ownership and membership from the session, not submitted account IDs. A successful
+response includes the saved group and its chat; the page displays it with an
+**Open chat** link. `GET /api/study-groups?page=1` reloads saved groups newest-first,
+20 per page, with `X-Has-More` indicating another page. Chat IDs are returned only
+to group members.
+
+The existing `StudyGroup` and `StudyGroupMember` models are reused. A sort index
+supports listing, and the existing unique group/user constraint prevents duplicate
+memberships. Apply the additive index in other environments with
+`npm run prisma:push -w @campushub/api`. Tests verify creation/reloading, creator
+membership, chat privacy, validation, and transaction rollback in disposable MongoDB.
+
+## Discover, join and leave study groups
+
+On **Study groups**, choose a group name or **View details & members** to open
+`/study-groups/:id`. The details page shows its course, description, member count,
+and a paginated list of active members with public profiles, program, year and a
+creator badge. Any signed-in active student can preview the group and its members
+before joining. Email addresses and account credentials are not returned.
+
+**Join group** adds only the signed-in student and enables **Open chat** and
+**Leave group**. Joining repeatedly reuses the same membership and chat.
+Leaving asks for confirmation, removes group/chat membership together, and
+revokes chat access. The last departure deletes the empty group and its chat.
+MongoDB transactions serialize concurrent joins/leaves and roll back failed chat
+updates; socket notifications happen after commit. Legacy groups with missing
+chats are repaired for all existing members when someone joins.
+
+| Method | Endpoint | Result |
+|---|---|---|
+| `GET` | `/api/study-groups/:id` | Group details; chat ID visible only to members |
+| `GET` | `/api/study-groups/:id/members?page=1` | Public member profiles, 20 per page |
+| `POST` | `/api/study-groups/:id/join` | Join group and its chat |
+| `POST` | `/api/study-groups/:id/leave` | Leave group/chat; response indicates whether the empty group was deleted |
+
+The existing unique group/user membership constraint is retained. An additive
+membership revision field coordinates writes, and a group/join-date index
+supports member pagination. Regenerate Prisma and run
+`npm run prisma:push -w @campushub/api` in other environments. Older groups without
+the revision field are initialized safely; no database reset is required.
+
+## Find students by program, course or interest
+
+Open **Students** (`/members`) to search by name, program, full course code, or
+full interest tag. A name is optional when using another filter. Program names
+support partial, case-insensitive matches; combined filters must all match.
+Search is debounced, paginated (20 results per page), and excludes your own
+account and inactive accounts. Results show public profile details and links to
+view the profile or send a message; email addresses and account credentials are
+not returned.
+
+Use **Profile → Edit profile** to add your program, interests, and optional
+comma-separated **Courses** (up to 20). Course codes normalize spaces, hyphens
+and case, so `INFO-5103`, `info5103`, and `INFO 5103` match. Interest tags are
+trimmed, lowercased and deduplicated when saved. Courses and interests are shown
+on profiles and search results. Existing profiles without courses remain valid;
+an older client that omits courses does not erase previously saved courses.
+
+The authenticated `GET /api/profile/search` API accepts `q`, `program`, `course`,
+`interest` and `page`. All supplied filters are validated; an empty search returns
+an empty list. `X-Has-More` indicates another page. The `Profile` model adds a
+default-empty `courses` list and separate lookup indexes for program, courses
+and interests. Regenerate Prisma and run `npm run prisma:push -w @campushub/api`
+when applying these changes to another environment. No database reset is needed.
+
+## Event RSVPs and Saved Events
+
+On **Campus Events**, select **RSVP** to save a published upcoming event. The
+button changes to **Cancel RSVP**, and the saved state persists across reloads.
+Select the **Saved Events** button beside the Events page heading to open your
+saved list (`/events?view=saved`), then use **Back to events** to return. This
+button stays inside Events and has no separate link in the main navigation.
+
+Saved Events shows only the signed-in account's RSVPs, with event details and
+pagination. Past and cancelled events stay visible with clear badges. You can
+cancel an RSVP there at any time; new RSVPs require a published event that has
+not started. Cancelling removes the RSVP from MongoDB and from Saved Events.
+Repeated RSVP/cancel requests are safe, and the unique event/user constraint
+prevents duplicate RSVP records.
+
+| Method | Endpoint | Result |
+|---|---|---|
+| `POST` | `/api/events/:id/rsvp` | Save the caller's RSVP; repeated submissions return success |
+| `DELETE` | `/api/events/:id/rsvp` | Cancel only the caller's RSVP; repeated cancellations return 204 |
+| `GET` | `/api/events/saved?page=1&limit=12` | Paginated saved events, soonest date first; includes past/cancelled events |
+
+All endpoints require an active authenticated account. Event browsing includes
+only the caller's `isRsvped` flag, without exposing RSVP records or attendees.
+The existing `Rsvp` model stores `eventId`, `userId`, and `respondedAt`. Apply its
+new user/event lookup index with `npm run prisma:push -w @campushub/api` in other
+environments. No database reset is required.
+
 ## Managing marketplace listings
 
 Students and organizers can manage their own listings. **My listings** narrows

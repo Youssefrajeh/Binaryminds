@@ -31,6 +31,19 @@ export async function listManagedEvents(page = 1) {
   return { events: response.data, hasMore: response.headers?.["x-has-more"] === "true" };
 }
 
+export async function listSavedEvents(page = 1) {
+  const response = await api.get<CampusEvent[]>(`${BASE}/saved`, { params: page > 1 ? { page } : {} });
+  return { events: response.data, hasMore: response.headers?.["x-has-more"] === "true" };
+}
+
+export async function rsvpToEvent(id: string) {
+  await api.post(`${BASE}/${id}/rsvp`);
+}
+
+export async function cancelRsvp(id: string) {
+  await api.delete(`${BASE}/${id}/rsvp`);
+}
+
 export async function getEvent(id: string) {
   const response = await api.get<CampusEvent>(`${BASE}/${id}`);
   return response.data;

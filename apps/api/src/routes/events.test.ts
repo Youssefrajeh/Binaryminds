@@ -50,14 +50,14 @@ describe("event browsing", () => {
       expect.objectContaining({
         where: { status: "PUBLISHED", startsAt: { gt: expect.any(Date) } },
         orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-        include: {
+        include: expect.objectContaining({
           organizer: {
             select: {
               id: true,
               profile: { select: { displayName: true, avatarUrl: true } },
             },
           },
-        },
+        }),
       }),
     );
   });
@@ -99,6 +99,74 @@ describe("event browsing", () => {
       (await request(app).get("/api/events/e1").set("Authorization", auth))
         .status,
     ).toBe(404);
+  });
+});
+
+describe("student RSVPs and saved events", () => {
+  it.each(["post", "delete", "get"] as const)("requires authentication for %s", async (method) => {
+    const path = method === "get" ? "/api/events/saved" : "/api/events/e1/rsvp";
+    expect((await request(app)[method](path)).status).toBe(401);
+  });
+
+  it("saves only the signed-in user's RSVP and makes repeat requests idempotent", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", status: "PUBLISHED", startsAt: new Date(body.startsAt) });
+    prisma.rsvp.upsert.mockResolvedValue({ id: "r1" });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await request(app).post("/api/events/e1/rsvp").set("Authorization", auth).send({ userId: "someone-else" });
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ isRsvped: true });
+    }
+    expect(prisma.rsvp.upsert).toHaveBeenCalledWith({
+      where: { eventId_userId: { eventId: "e1", userId: "org" } },
+      create: { eventId: "e1", userId: "org" }, update: {},
+    });
+  });
+
+  it.each([
+    [null, 404],
+    [{ status: "DRAFT", startsAt: new Date(body.startsAt) }, 404],
+    [{ status: "CANCELLED", startsAt: new Date(body.startsAt) }, 409],
+    [{ status: "PUBLISHED", startsAt: new Date("2020-01-01") }, 409],
+  ])("rejects unavailable events: %j", async (event, status) => {
+    prisma.event.findUnique.mockResolvedValue(event);
+    expect((await request(app).post("/api/events/e1/rsvp").set("Authorization", auth)).status).toBe(status);
+    expect(prisma.rsvp.upsert).not.toHaveBeenCalled();
+  });
+
+  it("treats concurrent duplicate RSVPs as success", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", status: "PUBLISHED", startsAt: new Date(body.startsAt) });
+    prisma.rsvp.upsert.mockRejectedValue({ code: "P2002" });
+    expect((await request(app).post("/api/events/e1/rsvp").set("Authorization", auth)).body).toEqual({ isRsvped: true });
+  });
+
+  it("cancels only the caller's RSVP, even for cancelled/past events or a repeat cancellation", async () => {
+    prisma.rsvp.deleteMany.mockResolvedValue({ count: 0 });
+    expect((await request(app).delete("/api/events/e1/rsvp").set("Authorization", auth).send({ userId: "other" })).status).toBe(204);
+    expect(prisma.rsvp.deleteMany).toHaveBeenCalledWith({ where: { eventId: "e1", userId: "org" } });
+  });
+
+  it("loads only the caller's saved events and hides drafts with bounded pagination", async () => {
+    prisma.event.findMany.mockResolvedValue([{ id: "e1" }, { id: "e2" }, { id: "extra" }]);
+    const response = await request(app).get("/api/events/saved?page=2&limit=2&userId=other").set("Authorization", auth);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{ id: "e1", isRsvped: true }, { id: "e2", isRsvped: true }]);
+    expect(response.headers["x-has-more"]).toBe("true");
+    expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { rsvps: { some: { userId: "org" } }, status: { in: ["PUBLISHED", "CANCELLED"] } },
+      orderBy: [{ startsAt: "asc" }, { id: "asc" }], skip: 2, take: 3,
+    }));
+  });
+
+  it("rejects invalid saved-events pagination", async () => {
+    expect((await request(app).get("/api/events/saved?limit=1000").set("Authorization", auth)).status).toBe(400);
+    expect(prisma.event.findMany).not.toHaveBeenCalled();
+  });
+
+  it("includes private attendance state without exposing RSVP rows", async () => {
+    prisma.event.findMany.mockResolvedValue([{ id: "e1", rsvps: [{ id: "r1" }] }, { id: "e2", rsvps: [] }]);
+    const response = await request(app).get("/api/events").set("Authorization", auth);
+    expect(response.body).toEqual([{ id: "e1", isRsvped: true }, { id: "e2", isRsvped: false }]);
+    expect(prisma.event.findMany.mock.calls[0][0].include.rsvps).toEqual({ where: { userId: "org" }, select: { id: true } });
   });
 });
 

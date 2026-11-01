@@ -25,10 +25,82 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 | US-6 | As a Student, I want to edit, mark as sold, or delete my own marketplace listings. | Marketplace | Implemented locally; deployment pending |
 | US-7 | As a Student, I want to report an inappropriate listing, post, message, or file. | Moderation | Implemented locally; deployment pending |
 | US-8 | As an Administrator, I want to search users and assign or remove Organizer access. | Administration | Implemented locally; initial administrator setup/deployment pending |
+| US-9 | As a Student, I want to RSVP to an event and view the events I have saved. | Campus Events | Implemented locally; deployment pending |
+| US-10 | As a Student, I want to search for other students by program, course, or interest. | Student profiles | Implemented locally; deployment pending |
+| US-11 | As a Student, I want to create a study group with a name, course, and description. | Study groups | Implemented locally; deployment pending |
+| US-12 | As a Student, I want to discover, join, and leave study groups and view their members. | Study groups | Implemented locally; deployment pending |
 
 ---
 
 ## User Stories and Tasks
+
+### US-12: Discover Study Groups and Manage Membership
+> As a Student, I want to discover, join, and leave study groups and view their members.
+
+| Task | Status |
+|------|--------|
+| Build study-group list/details page | List links to a dedicated details page with public member profiles |
+| Add Join and Leave group controls | Available on list/details, with leave confirmation and chat access updates |
+| Create join/leave/group-members API logic | Authenticated details and paginated members; atomic join/leave with bounded retries |
+| Set up/verify group membership data in MongoDB | Unique membership constraint retained; write revision and member-list index added; legacy groups supported |
+| Test discover, join, leave and member-list features | UI/API and real MongoDB tests, including concurrent membership changes, rollback and chat access |
+
+Signed-in students can preview groups/members before joining. Only current members
+can access the group chat. Leaving removes chat access; the final departure deletes
+the empty group and its chat. Member lists expose public fields only.
+
+---
+
+### US-11: Create a Study Group
+> As a Student, I want to create a study group with a name, course, and description.
+
+| Task | Status |
+|------|--------|
+| Build Create Study Group form | Existing form completed with required fields, feedback and duplicate-submit prevention |
+| Create study-group API | Authenticated creation saves group, creator membership and chat atomically |
+| Set up/verify Study Group data model in MongoDB | Existing models reused; sort index added; real MongoDB persistence/rollback verified |
+| Connect form to backend | Saved group appears with member count and Open chat; listings have pagination |
+| Test study-group creation and saved data | API, form and disposable MongoDB integration tests |
+
+The signed-in creator is the first member. Groups remain available after reload.
+Failed chat creation leaves no partial group or membership data. Existing groups
+with missing descriptions stay readable; new groups require a description.
+
+---
+
+### US-10: Search Students by Program, Course or Interest
+> As a Student, I want to search for other students by program, course, or interest.
+
+| Task | Status |
+|------|--------|
+| Build student search page and filters | Existing Students page extended with program, course and interest filters |
+| Create student search API | Existing authenticated profile search extended with combined filters and pagination |
+| Set up/verify profile fields and search queries | Courses added to profiles; normalized courses/interests and lookup indexes; verified in disposable MongoDB |
+| Connect search filters to backend | Implemented with debouncing, clear/retry controls, and stale-response protection |
+| Test program, course and interest searches | UI/API and MongoDB integration coverage for individual and combined filters |
+
+Students can edit the profile fields used by search. Results exclude the caller
+and inactive users and expose only public fields. Search results link to public
+profiles and direct messaging. Existing profiles without courses remain usable.
+
+---
+
+### US-9: RSVP and Saved Events
+> As a Student, I want to RSVP to an event and view the events I have saved.
+
+| Task | Status |
+|------|--------|
+| Build RSVP button and Saved Events page | Implemented with an in-page Saved Events button and Back to events link |
+| Create RSVP and saved-events APIs | Implemented with authentication, pagination, and safe repeat requests |
+| Set up/verify RSVP data in MongoDB | Existing unique event/user model reused; user lookup index added; disposable MongoDB tests |
+| Connect frontend to RSVP backend | Implemented; saved status survives reloads |
+| Test RSVP, cancel RSVP, and saved-events display | UI/API and MongoDB integration coverage |
+
+Students can RSVP to published upcoming events, cancel their own RSVP, and view
+only their saved events. Past/cancelled saved events remain visible with status
+badges and can be removed. Saved Events is not added to the main navigation.
+
+---
 
 ### US-1: Post a Lost / Found Item Report
 > As a Student, I want to post a lost or found item report with a description, photo, location, and date.

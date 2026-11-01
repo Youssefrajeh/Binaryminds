@@ -30,6 +30,7 @@ const MessagesPage = lazy(() => import("./pages/MessagesPage").then((module) => 
 const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
 const AdminReportsPage = lazy(() => import("./pages/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 const EventManagementPage = lazy(() => import("./pages/EventManagementPage").then((module) => ({ default: module.EventManagementPage })));
+const StudyGroupDetailsPage = lazy(() => import("./pages/StudyGroupDetailsPage").then((module) => ({ default: module.StudyGroupDetailsPage })));
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
             <Route path="/admin/users" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminUsersPage /></RoleRoute>} />
             <Route path="/admin/reports" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminReportsPage /></RoleRoute>} />
             <Route path="/events/manage" element={<RoleRoute roles={["ORGANIZER", "ADMINISTRATOR"]}><EventManagementPage /></RoleRoute>} />
+            <Route path="/study-groups/:id" element={<ProtectedRoute><StudyGroupDetailsPage /></ProtectedRoute>} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/verify" element={<VerifyPage />} />
