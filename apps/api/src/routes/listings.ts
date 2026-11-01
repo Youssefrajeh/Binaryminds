@@ -15,6 +15,11 @@ const MAX_IMAGE_CHARS = 3 * 1024 * 1024;
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
+const listingInclude = {
+  category: true,
+  images: { orderBy: { sortOrder: "asc" } },
+  seller: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } },
+} satisfies Prisma.ListingInclude;
 
 // Price filters arrive in dollars (what the UI shows) and are stored in cents
 const searchSchema = z.object({
@@ -25,6 +30,7 @@ const searchSchema = z.object({
   maxPrice: z.coerce.number().min(0, "Maximum price cannot be negative").optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  mine: z.enum(["true", "false"]).optional(),
 });
 
 const createListingSchema = z.object({
@@ -74,7 +80,7 @@ listingsRouter.get("/", async (req, res) => {
       res.status(400).json({ error: parsedQuery.error.issues[0]?.message ?? "Invalid search" });
       return;
     }
-    const { search, categoryId, condition, minPrice, maxPrice, page, limit } = parsedQuery.data;
+    const { search, categoryId, condition, minPrice, maxPrice, page, limit, mine } = parsedQuery.data;
 
     if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
       res.status(400).json({ error: "Minimum price cannot be higher than maximum price" });
@@ -82,7 +88,8 @@ listingsRouter.get("/", async (req, res) => {
     }
 
     const where: Prisma.ListingWhereInput = {
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "SOLD"] },
+      ...(mine === "true" ? { sellerId: req.user!.userId } : {}),
     };
 
     if (search) {
@@ -171,7 +178,7 @@ listingsRouter.get("/:id", async (req, res) => {
       },
     });
 
-    if (!listing || listing.status !== "ACTIVE") {
+    if (!listing || listing.status === "REMOVED") {
       res.status(404).json({
         error: "Listing not found",
       });
@@ -185,6 +192,65 @@ listingsRouter.get("/:id", async (req, res) => {
     res.status(500).json({
       error: "Internal server error",
     });
+  }
+});
+
+listingsRouter.put("/:id", async (req, res) => {
+  const parsed = createListingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid listing" });
+    return;
+  }
+  try {
+    const existing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.status === "REMOVED") { res.status(404).json({ error: "Listing not found" }); return; }
+    if (existing.sellerId !== req.user!.userId) { res.status(403).json({ error: "You can only edit your own listings" }); return; }
+    const { images, ...data } = parsed.data;
+    if (!(await prisma.category.findUnique({ where: { id: data.categoryId } }))) {
+      res.status(400).json({ error: "Category not found" }); return;
+    }
+    // Nested updates atomically replace photos without exposing partial edits.
+    const updated = await prisma.listing.update({
+      where: { id: existing.id, sellerId: req.user!.userId, status: { not: "REMOVED" } },
+      data: { ...data, images: { deleteMany: {}, create: images.map((image, sortOrder) => ({ url: image.url, sortOrder })) } },
+      include: listingInclude,
+    });
+    res.json(updated);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      res.status(404).json({ error: "Listing not found" }); return;
+    }
+    console.error("Update listing error:", err);
+    res.status(500).json({ error: "Could not update the listing" });
+  }
+});
+
+listingsRouter.patch("/:id/sold", async (req, res) => {
+  try {
+    const existing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.status === "REMOVED") { res.status(404).json({ error: "Listing not found" }); return; }
+    if (existing.sellerId !== req.user!.userId) { res.status(403).json({ error: "You can only manage your own listings" }); return; }
+    res.json(await prisma.listing.update({ where: { id: existing.id, sellerId: req.user!.userId, status: { not: "REMOVED" } }, data: { status: "SOLD" }, include: listingInclude }));
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      res.status(404).json({ error: "Listing not found" }); return;
+    }
+    console.error("Mark listing sold error:", err);
+    res.status(500).json({ error: "Could not mark the listing as sold" });
+  }
+});
+
+listingsRouter.delete("/:id", async (req, res) => {
+  try {
+    const existing = await prisma.listing.findUnique({ where: { id: req.params.id } });
+    if (!existing) { res.status(404).json({ error: "Listing not found" }); return; }
+    if (existing.sellerId !== req.user!.userId) { res.status(403).json({ error: "You can only delete your own listings" }); return; }
+    // Keep the record referenced by existing buyer/seller conversations.
+    await prisma.listing.update({ where: { id: existing.id }, data: { status: "REMOVED", archivedAt: new Date() } });
+    res.status(204).end();
+  } catch (err) {
+    console.error("Delete listing error:", err);
+    res.status(500).json({ error: "Could not delete the listing" });
   }
 });
 

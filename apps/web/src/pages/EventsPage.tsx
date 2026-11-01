@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router";
 import { Nav } from "../components/Nav";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../lib/errors";
-import { formatEventDate, formatTimeRange } from "../lib/format";
+import { EventCard } from "../components/EventCard";
 import { canOrganizeEvents, listUpcomingEvents, type CampusEvent } from "../services/eventService";
 
 export function EventsPage() {
@@ -15,6 +15,8 @@ export function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     let stale = false;
@@ -23,8 +25,8 @@ export function EventsPage() {
       setLoading(true);
       setError("");
       try {
-        const upcoming = await listUpcomingEvents();
-        if (!stale) setEvents(upcoming);
+        const upcoming = await listUpcomingEvents(page);
+        if (!stale) { setEvents(upcoming.events); setHasMore(upcoming.hasMore); }
       } catch (err) {
         if (!stale) setError(apiErrorMessage(err, "Failed to load events."));
       } finally {
@@ -36,7 +38,7 @@ export function EventsPage() {
     return () => {
       stale = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, page]);
 
   const canCreate = canOrganizeEvents(user?.role);
 
@@ -51,11 +53,15 @@ export function EventsPage() {
             <p className="mt-2 text-ink-soft">What's coming up around Fanshawe.</p>
           </div>
           {canCreate && (
+            <div className="flex flex-wrap gap-3">
+            <Link to="/events/manage" className="btn-secondary">Event Management</Link>
             <Link to="/events/new" className="btn-primary whitespace-nowrap px-6">
               + Create event
             </Link>
+            </div>
           )}
         </div>
+        <p className="mt-3 text-xs text-muted">Dates and times are shown in your local timezone.</p>
 
         {flash && (
           <div role="status" className="alert-success mt-8">
@@ -92,47 +98,14 @@ export function EventsPage() {
 
         {!loading && !error && events.length > 0 && (
           <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <li
-                key={event.id}
-                className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm"
-              >
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand">
-                  {formatEventDate(event.startsAt)}
-                </p>
-                <h2 className="mt-2 text-lg font-semibold text-ink">{event.title}</h2>
-                <p className="mt-2 line-clamp-3 text-sm text-ink-soft">{event.description}</p>
-
-                <dl className="mt-4 space-y-1 text-sm text-ink-soft">
-                  <div className="flex gap-1.5">
-                    <dt className="font-medium text-ink">Time:</dt>
-                    <dd>{formatTimeRange(event.startsAt, event.endsAt)}</dd>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <dt className="font-medium text-ink">Where:</dt>
-                    <dd>{event.location}</dd>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <dt className="font-medium text-ink">Organizer:</dt>
-                    <dd>{event.organizer?.profile?.displayName || "CampusHub organizer"}</dd>
-                  </div>
-                </dl>
-
-                {user?.id === event.organizerId && (
-                  <div className="mt-auto pt-5">
-                    <Link
-                      to={`/events/${event.id}/edit`}
-                      className="btn-secondary"
-                      aria-label={`Edit ${event.title}`}
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                )}
-              </li>
-            ))}
+            {events.map((event) => <EventCard key={event.id} event={event} />)}
           </ul>
         )}
+        {!error && (page > 1 || hasMore) && <div className="mt-8 flex items-center justify-between gap-3">
+          <button className="btn-secondary" disabled={loading || page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button>
+          <span className="text-sm text-muted">Page {page}</span>
+          <button className="btn-secondary" disabled={loading || !hasMore} onClick={() => setPage((value) => value + 1)}>Next</button>
+        </div>}
       </main>
     </div>
   );

@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useContentRemoval } from "../lib/useContentRemoval";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Nav } from "../components/Nav";
 import { useAuth } from "../context/AuthContext";
 import { Avatar } from "../components/Avatar";
 import { MessageButton } from "../components/MessageButton";
+import { ReportButton } from "../components/ReportButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { apiErrorMessage } from "../lib/errors";
@@ -24,6 +26,10 @@ export function ListingDetailsPage() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const removeListing = useCallback((removedId: string) => {
+    if (removedId === id) { setListing(null); setError("This listing was removed by an administrator."); setLoading(false); }
+  }, [id]);
+  useContentRemoval("LISTING", removeListing);
 
   const [actionError, setActionError] = useState("");
   const [markingSold, setMarkingSold] = useState(false);
@@ -177,6 +183,7 @@ export function ListingDetailsPage() {
                 <p className="text-xs text-muted">
                   Listed {new Date(listing.createdAt).toLocaleDateString()}
                 </p>
+                <ReportButton targetType="LISTING" targetId={listing.id} ownerId={listing.seller.id} label={`Report listing: ${listing.title}`} />
               </div>
 
               {isOwner ? (

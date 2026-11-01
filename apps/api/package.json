@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "admin:bootstrap": "tsx --env-file=.env prisma/bootstrap-admin.ts"
   },
   "dependencies": {
     "@campushub/shared": "*",

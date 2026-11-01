@@ -17,7 +17,11 @@ function readStoredSession(): { token: string | null; user: UserDto | null } {
   }
   const token = localStorage.getItem("campushub_token");
   const stored = localStorage.getItem("campushub_user");
-  const user: UserDto | null = stored ? JSON.parse(stored) : null;
+  let user: UserDto | null = null;
+  try {
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && typeof parsed.id === "string" && typeof parsed.email === "string" && ["STUDENT", "ORGANIZER", "ADMINISTRATOR"].includes(parsed.role)) user = parsed;
+  } catch { /* Discard malformed saved sessions instead of crashing startup. */ }
   if (token && !user) {
     clearStoredSession();
     return { token: null, user: null };

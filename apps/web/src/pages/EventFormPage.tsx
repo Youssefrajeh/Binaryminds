@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Nav } from "../components/Nav";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -6,6 +6,7 @@ import { FieldError } from "../components/FieldError";
 import { errorProps, type Errors } from "../lib/fieldErrors";
 import { useAuth } from "../context/AuthContext";
 import { apiErrorMessage } from "../lib/errors";
+import { fileToDataUrl, photoError as validatePhoto } from "../lib/image";
 import {
   cancelEvent,
   canOrganizeEvents,
@@ -15,14 +16,16 @@ import {
   type CampusEvent,
 } from "../services/eventService";
 
-type Field = "title" | "description" | "date" | "startTime" | "endTime" | "location";
+type Field = "title" | "description" | "date" | "startTime" | "endDate" | "endTime" | "location";
 
 const emptyForm = {
   title: "",
   description: "",
   date: "",
   startTime: "",
+  endDate: "",
   endTime: "",
+  imageUrl: "",
   location: "",
 };
 
@@ -30,19 +33,30 @@ type Form = typeof emptyForm;
 
 // Date and time inputs work in local time; the API stores ISO date-times
 function toIso(date: string, time: string) {
-  return new Date(`${date}T${time}`).toISOString();
+  const instant = new Date(`${date}T${time}`);
+  const offset = -instant.getTimezoneOffset();
+  if (offset === 0) return instant.toISOString();
+  const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, "0");
+  const minutes = String(Math.abs(offset) % 60).padStart(2, "0");
+  // Preserve the selected calendar day at the API boundary, including DST.
+  const local = new Date(instant.getTime() + offset * 60_000).toISOString().slice(0, 19);
+  return `${local}${offset < 0 ? "-" : "+"}${hours}:${minutes}`;
 }
 
 function toForm(event: CampusEvent): Form {
   const start = new Date(event.startsAt);
-  const end = new Date(event.endsAt);
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  const startDate = start.toLocaleDateString("en-CA");
+  const endDate = end?.toLocaleDateString("en-CA");
   return {
     title: event.title,
     description: event.description,
     // en-CA formats as YYYY-MM-DD; toTimeString starts with HH:MM in local time
-    date: start.toLocaleDateString("en-CA"),
+    date: startDate,
     startTime: start.toTimeString().slice(0, 5),
-    endTime: end.toTimeString().slice(0, 5),
+    endDate: endDate ? (event.endDate || endDate !== startDate ? endDate : "") : event.endDate || "",
+    endTime: end?.toTimeString().slice(0, 5) ?? "",
+    imageUrl: event.imageUrl ?? "",
     location: event.location,
   };
 }
@@ -54,13 +68,13 @@ function validate(form: Form): Errors<Field> {
   if (!form.location.trim()) errors.location = "Location is required.";
   if (!form.date) errors.date = "Date is required.";
   if (!form.startTime) errors.startTime = "Start time is required.";
-  if (!form.endTime) errors.endTime = "End time is required.";
+  if (form.endDate && form.date && form.endDate < form.date) errors.endDate = "End date cannot be before the start date.";
 
   if (form.date && form.startTime) {
     if (new Date(`${form.date}T${form.startTime}`).getTime() <= Date.now()) {
       errors.startTime = "The event must start in the future.";
     }
-    if (form.endTime && form.endTime <= form.startTime) {
+    if (form.endTime && new Date(`${form.endDate || form.date}T${form.endTime}`).getTime() <= new Date(`${form.date}T${form.startTime}`).getTime()) {
       errors.endTime = "End time must be after the start time.";
     }
   }
@@ -80,6 +94,9 @@ export function EventFormPage() {
   const [errors, setErrors] = useState<Errors<Field>>({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const photoRequest = useRef(0);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -113,8 +130,29 @@ export function EventFormPage() {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
+  async function handlePhoto(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const request = ++photoRequest.current;
+    const invalid = validatePhoto(file);
+    setPhotoError(invalid || "");
+    setUploading(false);
+    if (invalid) return;
+    setUploading(true);
+    try {
+      const imageUrl = await fileToDataUrl(file);
+      if (request === photoRequest.current) setForm((current) => ({ ...current, imageUrl }));
+    } catch {
+      if (request === photoRequest.current) setPhotoError("Unable to read this photo. Please choose another image.");
+    } finally {
+      if (request === photoRequest.current) setUploading(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (uploading || photoError || submitting) return;
     setSubmitError("");
 
     const found = validate(form);
@@ -125,7 +163,9 @@ export function EventFormPage() {
       title: form.title.trim(),
       description: form.description.trim(),
       startsAt: toIso(form.date, form.startTime),
-      endsAt: toIso(form.date, form.endTime),
+      endsAt: form.endTime ? toIso(form.endDate || form.date, form.endTime) : null,
+      endDate: form.endDate || null,
+      imageUrl: form.imageUrl || null,
       location: form.location.trim(),
     };
 
@@ -163,8 +203,8 @@ export function EventFormPage() {
 
   // Hide the form from people the API would reject anyway
   let blocked = "";
-  if (!isEdit && !canOrganizeEvents(user?.role)) {
-    blocked = "Only event organizers can create events.";
+  if (!canOrganizeEvents(user?.role)) {
+    blocked = "Only event organizers can manage events.";
   } else if (event && event.organizerId !== user?.id) {
     blocked = "Only the event's organizer can edit it.";
   } else if (event?.status === "CANCELLED") {
@@ -237,7 +277,7 @@ export function EventFormPage() {
                 <FieldError errors={errors} prefix="ev" field="description" />
               </div>
 
-              <div className="grid gap-6 sm:grid-cols-3">
+              <div className="grid gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="ev-date" className="field-label">
                     Date *
@@ -268,8 +308,15 @@ export function EventFormPage() {
                   <FieldError errors={errors} prefix="ev" field="startTime" />
                 </div>
                 <div>
+                  <label htmlFor="ev-endDate" className="field-label">
+                    End date (optional)
+                  </label>
+                  <input id="ev-endDate" type="date" min={form.date || undefined} className="field-input" value={form.endDate} onChange={(e) => update("endDate", e.target.value)} {...errorProps(errors, "ev", "endDate")} />
+                  <FieldError errors={errors} prefix="ev" field="endDate" />
+                </div>
+                <div>
                   <label htmlFor="ev-end" className="field-label">
-                    End time *
+                    End time (optional)
                   </label>
                   <input
                     id="ev-end"
@@ -281,6 +328,18 @@ export function EventFormPage() {
                   />
                   <FieldError errors={errors} prefix="ev" field="endTime" />
                 </div>
+              </div>
+
+              <p className="text-xs text-muted">Leave the end fields blank if the finish is unknown. An end time without an end date uses the start date.</p>
+
+              <div>
+                <label htmlFor="ev-photo" className="field-label">Event photo (optional)</label>
+                <input id="ev-photo" type="file" accept="image/jpeg,image/png,image/webp" className="field-input" onChange={handlePhoto} disabled={submitting || cancelling} aria-describedby={photoError ? "ev-photo-hint ev-photo-error" : "ev-photo-hint"} aria-invalid={!!photoError} />
+                <p id="ev-photo-hint" className="mt-1 text-xs text-muted">JPG, PNG, or WebP, up to 2 MB.</p>
+                {uploading && <p role="status" className="mt-2 text-sm text-muted">Reading photo...</p>}
+                {photoError && <p id="ev-photo-error" role="alert" className="mt-2 text-sm text-danger">{photoError}</p>}
+                {form.imageUrl && <img src={form.imageUrl} alt="Event photo preview" className="mt-3 max-h-64 w-full rounded-xl object-contain" />}
+                {(form.imageUrl || photoError) && <button type="button" className="btn-secondary mt-3" onClick={() => { ++photoRequest.current; setForm((current) => ({ ...current, imageUrl: "" })); setPhotoError(""); setUploading(false); }}>Remove photo</button>}
               </div>
 
               <div>
@@ -318,7 +377,7 @@ export function EventFormPage() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button type="submit" className="btn-primary px-6" disabled={submitting || cancelling}>
+                <button type="submit" className="btn-primary px-6" disabled={submitting || cancelling || uploading || !!photoError}>
                   {submitting ? "Saving..." : isEdit ? "Save changes" : "Create event"}
                 </button>
                 <Link to="/events" className="btn-secondary px-6">

@@ -2,6 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Link, useNavigate } from "react-router";
 import type { ConversationDto, MessageDto, MessagesPageDto } from "@campushub/shared";
 import { Avatar } from "./Avatar";
+import { EventChatContext } from "./EventChatContext";
+import { ListingChatContext } from "./ListingChatContext";
+import { ReportButton } from "./ReportButton";
+import { safeAttachmentUrl } from "@campushub/shared";
 import { useSocket } from "../context/SocketContext";
 import { formatDayLabel, formatMessageTime, newClientId } from "../lib/format";
 import api from "../lib/api";
@@ -152,11 +156,19 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
       }
     }
 
+    function onMessageUpdated({ message }: { message: MessageDto }) {
+      if (message.conversationId !== conversationId) return;
+      stickToBottom.current = isNearBottom();
+      setMessages((list) => list.some((item) => item.id === message.id) ? upsert(list, message) : list);
+    }
+
     socket.on("message:new", onMessageNew);
+    socket.on("message:updated", onMessageUpdated);
     socket.on("typing", onTyping);
 
     return () => {
       socket.off("message:new", onMessageNew);
+      socket.off("message:updated", onMessageUpdated);
       socket.off("typing", onTyping);
       timers.forEach(clearTimeout);
       timers.clear();
@@ -322,9 +334,9 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
         ) : (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{conversation.name}</p>
-            <p className="text-xs text-muted">
+            {conversation.type === "GROUP" && <p className="text-xs text-muted">
               {conversation.members.length} member{conversation.members.length === 1 ? "" : "s"}
-            </p>
+            </p>}
           </div>
         )}
 
@@ -338,13 +350,16 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
         </div>
       </div>
 
+      {conversation.event && <EventChatContext event={conversation.event} />}
+      {conversation.listing && <ListingChatContext listing={conversation.listing} />}
+
       {conversation.isRequest && (
         <div className="border-b border-line bg-brand-soft/60 px-4 py-3">
           <p className="text-sm text-ink">
             <span className="font-semibold">{conversation.name}</span> wants to message you. Replying also accepts.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" onClick={() => runAction("accept")} disabled={busyAction} className="btn-primary px-4 py-1.5">
+            <button type="button" onClick={() => runAction("accept")} disabled={busyAction || !other} className="btn-primary px-4 py-1.5">
               Accept
             </button>
             <button type="button" onClick={() => runAction("ignore")} disabled={busyAction} className="btn-secondary px-4 py-1.5">
@@ -397,6 +412,13 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
                     >
                       {m.text}
                     </div>
+                    {!m.removedAt && m.attachments.map((file, index) => (
+                      <div key={`${file.url}-${index}`} className="mt-2 max-w-full rounded-lg border border-line bg-canvas p-2 text-xs text-ink-soft">
+                        {safeAttachmentUrl(file.url) ? <a href={safeAttachmentUrl(file.url)!} target="_blank" rel="noopener noreferrer" className="link break-all">{file.name}</a> : <span className="break-all">{file.name} (link unavailable)</span>}
+                        <ReportButton targetType="FILE" targetId={m.id} ownerId={m.senderId} attachmentIndex={index} label={`Report file: ${file.name}`} />
+                      </div>
+                    ))}
+                    {!mine && !m.removedAt && <ReportButton targetType="MESSAGE" targetId={m.id} ownerId={m.senderId} label="Report message" />}
                     <p className="mt-0.5 px-1 text-[11px] text-muted">
                       {m.status === "sending" ? (
                         "Sending…"
@@ -426,7 +448,9 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
       </div>
 
       {/* Input */}
-      {conversation.blockedByMe ? (
+      {conversation.type === "DIRECT" && !other ? (
+        <p className="border-t border-line px-4 py-4 text-center text-sm text-muted">This account is no longer available. You can still read the conversation history.</p>
+      ) : conversation.blockedByMe ? (
         <p className="border-t border-line px-4 py-4 text-center text-sm text-muted">
           You blocked this conversation. Use the Message button on their profile to unblock.
         </p>
@@ -434,7 +458,9 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
         <form onSubmit={handleSubmit} className="border-t border-line p-3">
           {pendingOutgoing && (
             <p className="mb-2 text-xs text-muted">
-              Message request sent. It moves to their inbox once they accept or reply.
+              {messages.some((message) => message.senderId === meId && message.status !== "failed")
+                ? "Message request sent. It moves to their inbox once they accept or reply."
+                : "Your first message will appear in their Requests. They can accept or reply to continue."}
             </p>
           )}
           <div className="flex items-end gap-2">

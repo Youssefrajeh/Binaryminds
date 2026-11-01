@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useContentRemoval } from "../lib/useContentRemoval";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
+import { ReportButton } from "../components/ReportButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { MessageButton } from "../components/MessageButton";
 import { useAuth } from "../context/AuthContext";
@@ -28,6 +30,8 @@ function formatDate(iso: string) {
 export function LostFoundPage() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<LostFoundPost[]>([]);
+  const removePost = useCallback((id: string) => setPosts((current) => current.filter((post) => post.id !== id)), []);
+  useContentRemoval("LOST_FOUND_POST", removePost);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<LostFoundKind | "">("");
   const [category, setCategory] = useState<LostFoundCategory | "">("");
@@ -358,6 +362,7 @@ export function LostFoundPage() {
                     </dl>
 
                     <div className="mt-auto flex flex-wrap items-center gap-3 pt-5">
+                      <ReportButton targetType="LOST_FOUND_POST" targetId={post.id} ownerId={post.authorId} label={`Report post: ${post.title}`} />
                       {!isOwner && !resolved && (
                         <MessageButton recipientId={post.authorId} label="Message poster" className="btn-secondary" />
                       )}

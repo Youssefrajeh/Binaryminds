@@ -48,9 +48,18 @@ export function formatEventDate(iso: string): string {
 }
 
 /** Event card time: "6:00 PM – 8:00 PM" */
-export function formatTimeRange(startIso: string, endIso: string): string {
+export function formatTimeRange(startIso: string, endIso?: string | null): string {
   const options: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
   const start = new Date(startIso).toLocaleTimeString(undefined, options);
+  if (!endIso) return start;
   const end = new Date(endIso).toLocaleTimeString(undefined, options);
   return `${start} – ${end}`;
+}
+
+/** A calendar date is parsed at local noon so it never shifts to the previous day. */
+export function formatEventDateRange(startIso: string, endDate?: string | null, endIso?: string | null): string {
+  const start = formatEventDate(startIso);
+  const localStart = new Date(startIso).toLocaleDateString("en-CA");
+  const localEnd = endIso ? new Date(endIso).toLocaleDateString("en-CA") : endDate;
+  return localEnd && localEnd !== localStart ? `${start} – ${formatEventDate(`${localEnd}T12:00:00`)}` : start;
 }

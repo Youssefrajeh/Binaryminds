@@ -19,6 +19,9 @@ export function emitToUsers(userIds: string[], event: string, payload: unknown) 
   io.to(userIds.map(userRoom)).emit(event, payload);
 }
 
+/** Public-content changes contain only a type and ID, never private message data. */
+export function emitToAll(event: string, payload: unknown) { io?.emit(event, payload); }
+
 /** Removes a user's sockets from a conversation room, e.g. after leaving a study group */
 export function removeUserFromConversationRoom(userId: string, conversationId: string) {
   io?.in(userRoom(userId)).socketsLeave(convoRoom(conversationId));

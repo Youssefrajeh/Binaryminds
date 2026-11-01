@@ -20,10 +20,11 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 | US-1 | As a Student, I want to post a lost or found item report with a description, photo, location, and date. | Lost & Found | Implemented locally; deployment pending |
 | US-2 | As a Student, I want to search and filter lost-and-found posts by category, location, and date. | Lost & Found | Implemented locally; deployment pending |
 | US-3 | As a Student, I want to mark my lost-and-found post as resolved. | Lost & Found | Planned |
-| US-4 | As a Student, I want to browse upcoming campus events with their date, time, location, and organizer. | Campus Events | Planned |
-| US-5 | As an Event Organizer, I want to create, edit, and cancel campus events. | Campus Events | Planned |
-| US-6 | As a Student, I want to edit, mark as sold, or delete my own marketplace listings. | Marketplace | Planned |
-| US-7 | As a Student, I want to report an inappropriate listing, post, message, or file. | Moderation | Planned |
+| US-4 | As a Student, I want to browse upcoming campus events with their date, time, location, and organizer. | Campus Events | Implemented locally; deployment pending |
+| US-5 | As an Event Organizer, I want to create, edit, and cancel campus events. | Campus Events | Implemented locally; deployment pending |
+| US-6 | As a Student, I want to edit, mark as sold, or delete my own marketplace listings. | Marketplace | Implemented locally; deployment pending |
+| US-7 | As a Student, I want to report an inappropriate listing, post, message, or file. | Moderation | Implemented locally; deployment pending |
+| US-8 | As an Administrator, I want to search users and assign or remove Organizer access. | Administration | Implemented locally; initial administrator setup/deployment pending |
 
 ---
 
@@ -87,11 +88,11 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Build events list/card page | Youssef | Planned |
-| Create API to retrieve upcoming events | Abdul | Planned |
-| Verify event data structure/querying | Urshit | Planned |
-| Connect events page to API | Youssef, Abdul | Planned |
-| Test event browsing and display | Urshit | Planned |
+| Build events list/card page | Youssef | Implemented |
+| Create API to retrieve upcoming events | Abdul | Implemented |
+| Verify event data structure/querying | Urshit | Implemented; additive indexes in schema |
+| Connect events page to API | Youssef, Abdul | Implemented |
+| Test event browsing and display | Urshit | UI/API and real MongoDB tests |
 
 **Acceptance Criteria**
 - The events page shows only upcoming events, sorted by date.
@@ -105,11 +106,11 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Build event create/edit form | Youssef | Planned |
-| Create event management API | Abdul | Planned |
-| Update/verify Event model | Urshit | Planned |
-| Connect event form to backend | Youssef, Abdul | Planned |
-| Test create, edit, and cancel | Urshit | Planned |
+| Build event create/edit form | Youssef | Implemented |
+| Create event management API | Abdul | Implemented; current roles and owner checks enforced |
+| Update/verify Event model | Urshit | Implemented; additive indexes in schema |
+| Connect event form to backend | Youssef, Abdul | Implemented; Event Management page added |
+| Test create, edit, and cancel | Urshit | UI/API and real MongoDB tests |
 
 **Acceptance Criteria**
 - An organizer can create an event with a title, description, date, time, and location.
@@ -123,10 +124,10 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Add edit/sold/delete controls | Youssef | Planned |
-| Create backend logic for update/delete/status changes | Abdul | Planned |
-| Verify listing updates in MongoDB | Urshit | Planned |
-| Test owner permissions and listing changes | Urshit | Planned |
+| Add edit/sold/delete controls | Youssef | Implemented; My listings filter added |
+| Create backend logic for update/delete/status changes | Abdul | Implemented; seller ownership enforced |
+| Verify listing updates in MongoDB | Urshit | Verified against disposable MongoDB |
+| Test owner permissions and listing changes | Urshit | UI/API and real MongoDB tests |
 
 **Acceptance Criteria**
 - Only the listing owner sees the edit, mark as sold, and delete controls.
@@ -140,15 +141,18 @@ Deliver the core Lost & Found and Campus Events features. Extend the Marketplace
 
 | Task | Owner | Status |
 |------|-------|--------|
-| Add Report button/form | Youssef | Planned |
-| Create report API | Abdul | Planned |
-| Set up/verify Report data model | Urshit | Planned |
-| Test submitting and saving reports | Urshit | Planned |
+| Add Report button/form | Youssef | Implemented for listings, posts, messages and stored chat attachments |
+| Create report API | Abdul | Implemented; membership and administrator permissions enforced |
+| Set up/verify Report data model | Urshit | Implemented; notes, snapshots, statuses, query indexes and moderation audit |
+| Test submitting and saving reports | Urshit | UI/API and disposable MongoDB tests; deployment pending |
 
 **Acceptance Criteria**
 - A Report option is available on listings, posts, messages, and files.
 - The student picks a reason and can add an optional comment.
 - The report is saved with the reporter, the reported item, and a timestamp.
+- Administrators review Open reports at `/admin/reports`, view the saved content, and remove content, resolve, or dismiss a report.
+- Review decisions and content removal are committed together with a moderation audit record.
+- File reporting covers stored chat attachments. Uploading new files remains outside this story; the current chat composer supports text only.
 
 ---
 

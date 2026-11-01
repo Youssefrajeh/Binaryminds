@@ -251,10 +251,10 @@ describe("POST /api/auth/verify", () => {
   it("creates an ACTIVE user and returns a valid token", async () => {
     prisma.pendingRegistration.findUnique.mockResolvedValue(pending());
     prisma.user.create.mockResolvedValue(baseUser());
-    const res = await request(app).post("/api/auth/verify").send({ email, otp: "123456" });
+    const res = await request(app).post("/api/auth/verify").send({ email, otp: "123456", role: "ADMINISTRATOR" });
     expect(res.status).toBe(200);
     expect(prisma.user.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ email, status: "ACTIVE", passwordHash: "ph" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ email, status: "ACTIVE", role: "STUDENT", passwordHash: "ph" }) }),
     );
     expect(verifyToken(res.body.token)).toMatchObject({ userId: "u1" });
     expect(res.body.user.passwordHash).toBeUndefined();

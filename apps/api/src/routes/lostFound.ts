@@ -4,10 +4,10 @@ import type { Prisma } from "@prisma/client";
 import {
   campusToday,
   LOST_FOUND_CATEGORIES,
-  MAX_LOST_FOUND_PHOTO_BYTES,
 } from "@campushub/shared";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
+import { photoSchema } from "../lib/photos.js";
 
 export const lostFoundRouter = Router();
 lostFoundRouter.use(requireAuth);
@@ -16,30 +16,6 @@ const categorySchema = z.enum(
   LOST_FOUND_CATEGORIES.map((category) => category.value),
 );
 const calendarDate = z.iso.date("Use a valid date in YYYY-MM-DD format");
-const MAX_IMAGE_CHARS = Math.ceil(MAX_LOST_FOUND_PHOTO_BYTES / 3) * 4 + 32;
-
-/** Check decoded size and file signatures as well as the declared MIME type. */
-function validPhoto(value: string): boolean {
-  const match =
-    /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
-  if (!match) return false;
-  const bytes = Buffer.from(match[2], "base64");
-  if (
-    bytes.length > MAX_LOST_FOUND_PHOTO_BYTES ||
-    bytes.toString("base64") !== match[2]
-  )
-    return false;
-  if (match[1] === "png")
-    return bytes
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  if (match[1] === "jpeg")
-    return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  return (
-    bytes.toString("ascii", 0, 4) === "RIFF" &&
-    bytes.toString("ascii", 8, 12) === "WEBP"
-  );
-}
 
 const createSchema = z.object({
   kind: z.enum(["LOST", "FOUND"]),
@@ -51,12 +27,7 @@ const createSchema = z.object({
     (date) => date <= campusToday(),
     "Date cannot be in the future",
   ),
-  imageUrl: z
-    .string()
-    .max(MAX_IMAGE_CHARS, "Photo must be at most 2 MB")
-    .refine(validPhoto, "Choose a valid JPG, PNG or WebP photo of at most 2 MB")
-    .nullable()
-    .default(null),
+  imageUrl: photoSchema.nullable().default(null),
 });
 
 const searchSchema = z
@@ -131,7 +102,8 @@ lostFoundRouter.get("/", async (req, res) => {
   }
   const { search, kind, category, location, from, to, page, limit } =
     parsed.data;
-  const where: Prisma.LostFoundPostWhereInput = {};
+  const visible = { OR: [{ removedAt: null }, { removedAt: { isSet: false } }] };
+  const where: Prisma.LostFoundPostWhereInput = { AND: [visible] };
   if (kind) where.kind = kind;
   // Older MongoDB documents predate the category field and belong under Other.
   if (category === "OTHER")
@@ -144,6 +116,7 @@ lostFoundRouter.get("/", async (req, res) => {
   if (location) where.location = { contains: location, mode: "insensitive" };
   if (search) {
     where.AND = [
+      visible,
       {
         OR: [
           { title: { contains: search, mode: "insensitive" } },
@@ -186,7 +159,7 @@ lostFoundRouter.patch("/:id/resolve", async (req, res) => {
     const existing = await prisma.lostFoundPost.findUnique({
       where: { id: req.params.id },
     });
-    if (!existing) {
+    if (!existing || existing.removedAt) {
       res.status(404).json({ error: "Post not found" });
       return;
     }

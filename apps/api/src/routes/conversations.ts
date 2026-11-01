@@ -5,6 +5,10 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import {
   conversationInclude,
+  conversationSummaryInclude,
+  conversationWhere,
+  unreadCounts,
+  toConversationSummaryDto,
   countUnread,
   directKeyFor,
   findMembership,
@@ -20,7 +24,8 @@ const startSchema = z.object({
   recipientId: z.string().min(1, "recipientId is required"),
   // Set when the chat is started from a listing page
   listingId: z.string().min(1).optional(),
-});
+  eventId: z.string().min(1).optional(),
+}).refine(({ listingId, eventId }) => !(listingId && eventId), "Choose either an event or a listing");
 
 const listSchema = z.object({
   tab: z.enum(["inbox", "requests"]).default("inbox"),
@@ -44,7 +49,7 @@ conversationsRouter.post("/", async (req, res) => {
     }
 
     const userId = req.user!.userId;
-    const { recipientId, listingId } = parsed.data;
+    const { recipientId, listingId, eventId } = parsed.data;
 
     if (recipientId === userId) {
       res.status(400).json({ error: "You cannot message yourself" });
@@ -59,18 +64,36 @@ conversationsRouter.post("/", async (req, res) => {
 
     if (listingId) {
       const listing = await prisma.listing.findUnique({ where: { id: listingId } });
-      if (!listing || listing.status !== "ACTIVE" || listing.sellerId !== recipientId) {
-        res.status(400).json({ error: "That listing does not belong to this seller" });
+      if (!listing || listing.status !== "ACTIVE" || (listing.sellerId !== recipientId && listing.sellerId !== userId)) {
+        res.status(400).json({ error: "This listing is unavailable or neither participant is its seller" });
         return;
       }
     }
 
-    const directKey = directKeyFor(userId, recipientId);
+    if (eventId) {
+      const event = await prisma.event.findUnique({ where: { id: eventId } });
+      if (!event || event.status !== "PUBLISHED" || event.organizerId !== recipientId) {
+        res.status(400).json({ error: "This event is unavailable or belongs to a different organizer" });
+        return;
+      }
+    }
+
+    const pairKey = directKeyFor(userId, recipientId);
+    const directKey = eventId ? `event:${eventId}:${pairKey}` : listingId ? `listing:${listingId}:${pairKey}` : `direct:${pairKey}`;
 
     let conversation = await prisma.conversation.findUnique({
       where: { directKey },
       include: conversationInclude,
     });
+    // Older DMs used only the member pair as their key. Reuse their history
+    // only when its context matches; never merge an ad chat with a general DM.
+    if (!conversation && !eventId) {
+      const legacy = await prisma.conversation.findUnique({ where: { directKey: pairKey }, include: conversationInclude });
+      if (legacy?.type === "DIRECT" && !legacy.eventId &&
+          (listingId ? legacy.listingId === listingId : !legacy.listingId)) {
+        conversation = legacy;
+      }
+    }
     let created = false;
 
     if (!conversation) {
@@ -82,6 +105,7 @@ conversationsRouter.post("/", async (req, res) => {
             requestedById: userId,
             directKey,
             ...(listingId ? { listingId } : {}),
+            ...(eventId ? { eventId } : {}),
             participants: { create: [{ userId }, { userId: recipientId }] },
           },
           include: conversationInclude,
@@ -118,6 +142,21 @@ conversationsRouter.post("/", async (req, res) => {
 /*  GET /conversations?tab=inbox|requests                              */
 /* ------------------------------------------------------------------ */
 
+conversationsRouter.get("/counts", async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const [inbox, requestCount] = await Promise.all([
+      prisma.conversation.findMany({ where: conversationWhere(userId, "inbox"), select: { id: true, participants: { where: { userId }, select: { lastReadAt: true } } } }),
+      prisma.conversation.count({ where: conversationWhere(userId, "requests") }),
+    ]);
+    const counts = await unreadCounts(userId, inbox.map((conversation) => ({ conversationId: conversation.id, lastReadAt: conversation.participants[0]?.lastReadAt ?? null })));
+    res.json({ unreadTotal: [...counts.values()].reduce((sum, count) => sum + count, 0), requestCount });
+  } catch (err) {
+    console.error("Conversation counts error:", err);
+    res.status(500).json({ error: "Could not load notification counts" });
+  }
+});
+
 conversationsRouter.get("/", async (req, res) => {
   try {
     const parsed = listSchema.safeParse(req.query);
@@ -127,40 +166,16 @@ conversationsRouter.get("/", async (req, res) => {
     }
 
     const userId = req.user!.userId;
-    const hasMessages: Prisma.ConversationWhereInput = { lastMessage: { isSet: true } };
-
-    const tabFilter: Prisma.ConversationWhereInput =
-      parsed.data.tab === "requests"
-        ? { type: "DIRECT", status: "PENDING", requestedById: { not: userId }, ...hasMessages }
-        : {
-            OR: [
-              { type: "GROUP" },
-              { type: "DIRECT", status: "ACCEPTED", ...hasMessages },
-              { type: "DIRECT", status: "PENDING", requestedById: userId, ...hasMessages },
-            ],
-          };
-
     const conversations = await prisma.conversation.findMany({
-      where: {
-        participants: {
-          some:
-            parsed.data.tab === "requests"
-              ? { userId, blockedAt: null, ignoredAt: null }
-              : { userId, blockedAt: null },
-        },
-        ...tabFilter,
-      },
+      where: conversationWhere(userId, parsed.data.tab),
       orderBy: { updatedAt: "desc" },
-      include: conversationInclude,
+      include: conversationSummaryInclude,
     });
-
-    const result = await Promise.all(
-      conversations.map(async (conversation) => {
-        const me = conversation.participants.find((p) => p.userId === userId)!;
-        const unread = await countUnread(conversation.id, userId, me.lastReadAt);
-        return toConversationDto(conversation, userId, unread);
-      })
-    );
+    const counts = await unreadCounts(userId, conversations.map((conversation) => ({
+      conversationId: conversation.id,
+      lastReadAt: conversation.participants.find((member) => member.userId === userId)?.lastReadAt ?? null,
+    })));
+    const result = conversations.map((conversation) => toConversationSummaryDto(conversation, userId, counts.get(conversation.id) ?? 0));
 
     res.json(result);
   } catch (err) {

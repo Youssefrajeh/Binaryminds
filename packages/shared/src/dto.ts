@@ -114,6 +114,10 @@ export interface LastMessageDto {
 }
 
 export interface ConversationDto {
+  /** The ad referenced by this marketplace conversation. */
+  listing?: ListingChatReferenceDto | null;
+  /** Event-specific DMs retain their context when reopened. */
+  event?: import("./events.js").CampusEventDto | null;
   id: string;
   type: ConversationType;
   /** Group name, or the other person's display name for a DM */
@@ -130,7 +134,25 @@ export interface ConversationDto {
   updatedAt: string;
 }
 
+export interface ListingChatReferenceDto {
+  id: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  condition: string;
+  status: "ACTIVE" | "SOLD" | "REMOVED";
+  imageUrl: string | null;
+  sellerName: string;
+}
+
+/** List rows omit full ad/event content; opening a chat loads its full reference. */
+export type ConversationSummaryDto = Omit<ConversationDto, "listing" | "event"> & {
+  listing?: { id: string; title: string } | null;
+  event?: { id: string; title: string } | null;
+};
+
 export interface MessageDto {
+  removedAt?: string | null;
   id: string;
   conversationId: string;
   senderId: string;

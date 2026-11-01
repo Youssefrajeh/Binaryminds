@@ -115,6 +115,7 @@ describe("POST /api/lost-found", () => {
 });
 
 describe("GET /api/lost-found", () => {
+  const visible = { OR: [{ removedAt: null }, { removedAt: { isSet: false } }] };
   beforeEach(() => prisma.lostFoundPost.findMany.mockResolvedValue([]));
 
   it("combines keyword, kind, category, location and inclusive dates", async () => {
@@ -123,7 +124,7 @@ describe("GET /api/lost-found", () => {
     expect(response.status).toBe(200);
     expect(prisma.lostFoundPost.findMany.mock.calls[0][0].where).toEqual({
       kind: "LOST", category: "BAGS", location: { contains: "library", mode: "insensitive" },
-      AND: [{ OR: [
+      AND: [visible, { OR: [
         { title: { contains: "blue", mode: "insensitive" } },
         { description: { contains: "blue", mode: "insensitive" } },
       ] }],
@@ -138,14 +139,15 @@ describe("GET /api/lost-found", () => {
     [{ to: "2026-10-01" }, { occurredOn: { lt: new Date("2026-10-02T00:00:00Z") } }],
   ])("supports filters independently: %j", async (query, where) => {
     expect((await request(app).get("/api/lost-found").set("Authorization", auth).query(query)).status).toBe(200);
-    expect(prisma.lostFoundPost.findMany.mock.calls[0][0].where).toEqual(where);
+    expect(prisma.lostFoundPost.findMany.mock.calls[0][0].where).toEqual({ ...where, AND: [visible] });
   });
 
   it("keeps legacy uncategorized reports in Other when also searching", async () => {
     await request(app).get("/api/lost-found?category=OTHER&search=wallet").set("Authorization", auth);
     const where = prisma.lostFoundPost.findMany.mock.calls[0][0].where;
     expect(where.OR).toEqual([{ category: "OTHER" }, { category: null }, { category: { isSet: false } }]);
-    expect(where.AND).toHaveLength(1);
+    expect(where.AND).toHaveLength(2);
+    expect(where.AND[0]).toEqual(visible);
   });
 
   it("bounds pages and uses stable newest-first ordering", async () => {
