@@ -1,4 +1,5 @@
 import type { Prisma, StudyGroup } from "@prisma/client";
+import { setTimeout as delay } from "node:timers/promises";
 import { prisma } from "./prisma.js";
 import { groupKeyFor } from "./conversations.js";
 
@@ -39,7 +40,12 @@ async function membershipTransaction<T>(work: (db: Prisma.TransactionClient) => 
     try { return await prisma.$transaction(work); }
     catch (err) {
       const code = (err as { code?: string } | null)?.code;
-      if (attempt < 3 && (code === "P2034" || code === "P2002")) continue;
+      if (attempt < 5 && (code === "P2034" || code === "P2002")) {
+        // Let the competing transaction commit before opening a fresh snapshot.
+        const backoff = Math.min(25 * 2 ** attempt, 200);
+        await delay(backoff + Math.floor(Math.random() * backoff));
+        continue;
+      }
       if (code === "P2025") throw new StudyGroupError("Study group not found");
       throw err;
     }

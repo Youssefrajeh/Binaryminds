@@ -85,7 +85,7 @@ describe("role assignment and events persisted in MongoDB", () => {
     expect(await prisma.message.count({ where: { conversationId: created.body.conversationId } })).toBe(0);
   });
 
-  it("keeps membership/chat consistent when the final departure races a new join", async () => {
+  it.each([1, 2, 3, 4, 5])("keeps membership/chat consistent when the final departure races a new join (run %i)", async () => {
     const created = await request(app).post("/api/study-groups").set("Authorization", studentToken).send({ name: "Concurrent membership", courseCode: "INFO5103", description: "Race regression" });
     const id = created.body.id;
     const [left, joined] = await Promise.all([

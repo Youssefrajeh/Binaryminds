@@ -122,6 +122,7 @@ describe("POST /api/study-groups/:id/join", () => {
     prisma.studyGroup.update.mockRejectedValueOnce({ code: "P2025" });
     const res = await request(app).post("/api/study-groups/nope/join").set("Authorization", aliceAuth);
     expect(res.status).toBe(404);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it("adds the member to the group chat", async () => {
@@ -146,6 +147,15 @@ describe("POST /api/study-groups/:id/join", () => {
     expect(res.status).toBe(200);
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
     expect(prisma.studyGroupMember.upsert.mock.calls[0][0].create.userId).toBe("alice");
+  });
+
+  it("recovers when transaction contention outlasts the first four attempts", async () => {
+    for (let attempt = 0; attempt < 4; attempt++) prisma.$transaction.mockRejectedValueOnce({ code: "P2034" });
+    prisma.conversation.findUnique.mockResolvedValue({ id: "c-group" });
+    const response = await request(app).post("/api/study-groups/sg1/join").set("Authorization", aliceAuth);
+    expect(response.status).toBe(200);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(5);
+    expect(prisma.studyGroupMember.upsert).toHaveBeenCalledTimes(1);
   });
 
   it("repairs a missing legacy group chat for all existing members", async () => {
