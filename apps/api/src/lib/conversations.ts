@@ -146,7 +146,7 @@ export function toConversationDto(
       condition: conversation.listing.condition,
       status: conversation.listing.status,
       imageUrl: conversation.listing.images[0]?.url ?? null,
-      sellerName: conversation.listing.seller.profile?.displayName || "CampusHub seller",
+      sellerName: conversation.listing.seller.profile?.displayName || "campus-hub seller",
     } : null,
     event: conversation.event ? {
       ...conversation.event,

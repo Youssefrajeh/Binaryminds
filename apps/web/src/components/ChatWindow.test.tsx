@@ -4,15 +4,61 @@ import { MemoryRouter } from "react-router";
 import type { ConversationDto } from "@campushub/shared";
 import { ChatWindow } from "./ChatWindow";
 
-const { get, patch, socket } = vi.hoisted(() => ({
-  get: vi.fn(), patch: vi.fn(),
+const { get, patch, post, socket } = vi.hoisted(() => ({
+  get: vi.fn(), patch: vi.fn(), post: vi.fn(),
   socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn(), timeout: vi.fn() },
 }));
-vi.mock("../lib/api", () => ({ default: { get, patch } }));
+vi.mock("../lib/api", () => ({ default: { get, patch, post } }));
 vi.mock("../context/AuthContext", () => ({ useAuth: () => ({ user: { id: "student" } }) }));
 vi.mock("../context/SocketContext", () => ({ useSocket: () => ({ socket, connected: true }) }));
 
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
+
+describe("sharing files", () => {
+  const base: ConversationDto = { id: "c1", type: "DIRECT", name: "Other Student", status: "ACCEPTED", isRequest: false, blockedByMe: false, studyGroupId: null, members: [{ id: "student", displayName: "Student", avatarUrl: null }, { id: "other", displayName: "Other Student", avatarUrl: null }], lastMessage: null, unreadCount: 0, updatedAt: "2026-11-01T12:00:00Z" };
+  const notes = new File(["%PDF-1.7"], "notes.pdf", { type: "application/pdf" });
+  async function open(conversation: ConversationDto) {
+    get.mockResolvedValue({ data: { messages: [], hasMore: false, nextCursor: null } });
+    patch.mockResolvedValue({ data: {} });
+    render(<MemoryRouter><ChatWindow conversation={conversation} meId="student" onRead={vi.fn()} onConversationChanged={vi.fn()} /></MemoryRouter>);
+    await screen.findByText(/No messages yet/);
+  }
+  const choose = (file: File) => fireEvent.change(screen.getByLabelText("Choose a file to share"), { target: { files: [file] } });
+
+  it("uploads a file with the typed message as its caption", async () => {
+    await open(base);
+    post.mockResolvedValue({ data: { id: "m1", conversationId: "c1", senderId: "student", text: "Week 1", attachments: [{ url: "/api/files/f1/download", name: "notes.pdf", mimeType: "application/pdf", size: 8 }], clientId: "x", createdAt: "2026-11-01T12:00:00Z" } });
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Week 1" } });
+    choose(notes);
+    expect(await screen.findByRole("button", { name: "notes.pdf" })).toBeTruthy();
+    expect(post).toHaveBeenCalledWith("/conversations/c1/files", expect.objectContaining({ name: "notes.pdf", data: btoa("%PDF-1.7"), text: "Week 1" }));
+    expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("");
+  });
+  it("refuses unsupported and oversized files without uploading", async () => {
+    await open(base);
+    choose(new File(["x"], "virus.exe"));
+    expect((await screen.findByRole("alert")).textContent).toContain("Share a PDF");
+    choose(new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.pdf"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("5 MB"));
+    expect(post).not.toHaveBeenCalled();
+  });
+  it("shows the server error and keeps the typed message", async () => {
+    await open(base);
+    post.mockRejectedValue({ response: { data: { error: "That file does not match its file type" } } });
+    fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Keep me" } });
+    choose(notes);
+    await screen.findByText("That file does not match its file type");
+    expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("Keep me");
+  });
+  it("tells group members that files reach the course library", async () => {
+    await open({ ...base, type: "GROUP", name: "Algorithms" });
+    expect(screen.getByText(/also appear in Course files/)).toBeTruthy();
+  });
+  it("offers no upload in a pending message request", async () => {
+    await open({ ...base, status: "PENDING" });
+    expect(screen.queryByRole("button", { name: "Attach" })).toBeNull();
+  });
+});
 
 describe("event organizer chat", () => {
   it("offers message/file reports and applies live moderation without losing chat history", async () => {

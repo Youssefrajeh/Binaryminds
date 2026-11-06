@@ -1,6 +1,15 @@
 import { Link } from "react-router";
 import { useAuth } from "../context/AuthContext";
 
+const quickLinks = [
+  { to: "/marketplace", label: "Marketplace" },
+  { to: "/messages", label: "Messages" },
+  { to: "/study-groups", label: "Study groups" },
+  { to: "/lost-found", label: "Lost & Found" },
+  { to: "/events", label: "Events" },
+  { to: "/files", label: "Course files" },
+];
+
 export function Hero() {
   const { isAuthenticated } = useAuth();
 
@@ -49,12 +58,27 @@ export function Hero() {
             )}
           </div>
 
-          <p className="mt-5 flex items-center gap-2 text-xs text-muted">
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-success" fill="currentColor">
-              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm3.78 5.28-4.5 5a.75.75 0 0 1-1.06.02l-2-2a.75.75 0 1 1 1.06-1.06l1.46 1.46 3.97-4.42a.75.75 0 0 1 1.07 1Z" />
-            </svg>
-            Free to join · No setup required · Verified in seconds
-          </p>
+          {isAuthenticated ? (
+            <nav aria-label="Quick links" className="mt-6">
+              <p className="text-xs font-semibold tracking-wide text-muted uppercase">Jump back in</p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {quickLinks.map((link) => (
+                  <li key={link.to}>
+                    <Link to={link.to} className="inline-flex rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm font-medium text-ink-soft transition hover:border-brand hover:text-brand">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ) : (
+            <p className="mt-5 flex items-center gap-2 text-xs text-muted">
+              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 text-success" fill="currentColor" aria-hidden="true">
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm3.78 5.28-4.5 5a.75.75 0 0 1-1.06.02l-2-2a.75.75 0 1 1 1.06-1.06l1.46 1.46 3.97-4.42a.75.75 0 0 1 1.07 1Z" />
+              </svg>
+              Free to join · No setup required · Verified in seconds
+            </p>
+          )}
         </div>
 
         {/* Brand lockup */}

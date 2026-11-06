@@ -29,7 +29,7 @@ export function EventManagementPage() {
   }, [page, reloadKey]);
   return (
     <div className="min-h-screen bg-canvas"><Nav />
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
         <Link to="/events" className="link text-sm">← Browse campus events</Link>
         <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div><h1 className="text-3xl font-bold tracking-tight text-ink">Event Management</h1><p className="mt-2 text-ink-soft">Create events and manage your published, draft, and cancelled activities.</p></div>

@@ -61,6 +61,8 @@ describe("LoginPage", () => {
   it("falls back to a generic error", async () => {
     post.mockRejectedValue(new Error("network"));
     renderAt("/login", <LoginPage />);
+    type("login-email", "a");
+    type("login-password", "Campus#2026");
     submit();
     expect(await screen.findByText("Something went wrong")).toBeTruthy();
   });
@@ -123,8 +125,9 @@ describe("RegisterPage", () => {
     renderAt("/register", <RegisterPage />);
     fillValid();
     type("register-email", "a@gmail.com");
+    expect(screen.getByText("Use your @fanshaweonline.ca email")).toBeTruthy();
     submit();
-    expect(screen.getByText(/Fanshawe student email/)).toBeTruthy();
+    expect(screen.getByText("Enter your Fanshawe ID, e.g. y_rajeh")).toBeTruthy();
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -188,5 +191,68 @@ describe("RegisterPage", () => {
     fillValid();
     submit();
     expect(await screen.findByText("An account with this email already exists")).toBeTruthy();
+  });
+});
+
+describe("sign-in form details", () => {
+  it("uses the autocomplete tokens password managers expect", () => {
+    renderAt("/login", <LoginPage />);
+    expect(field("login-email").getAttribute("autocomplete")).toBe("username");
+    expect(field("login-email").getAttribute("inputmode")).toBe("email");
+    expect(field("login-password").getAttribute("autocomplete")).toBe("current-password");
+    cleanup();
+    renderAt("/register", <RegisterPage />);
+    expect(field("register-email").getAttribute("autocomplete")).toBe("username");
+  });
+
+  it("sends the full Fanshawe email when students type only their ID", async () => {
+    post.mockResolvedValue({ data: {} });
+    renderAt("/login", <LoginPage />);
+    type("login-email", " Y_Rajeh ");
+    type("login-password", "Campus#2026");
+    submit();
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/auth/login", { email: "y_rajeh@fanshaweonline.ca", password: "Campus#2026" }));
+    cleanup(); post.mockReset(); post.mockResolvedValue({ data: {} });
+    renderAt("/register", <RegisterPage />);
+    type("register-first-name", "Jane");
+    type("register-last-name", "Doe");
+    type("register-email", "y_rajeh");
+    type("register-password", "Campus#2026");
+    type("register-confirm", "Campus#2026");
+    fireEvent.click(field("register-terms"));
+    submit();
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/auth/register", expect.objectContaining({ email: "y_rajeh@fanshaweonline.ca" })));
+  });
+
+  it("does not submit an ID with characters Fanshawe IDs never use", () => {
+    renderAt("/login", <LoginPage />);
+    type("login-email", "y rajeh!");
+    type("login-password", "Campus#2026");
+    submit();
+    expect(screen.getByText("Use only letters, numbers, dots, underscores and hyphens")).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("names the two show-password buttons on the register form differently", () => {
+    renderAt("/register", <RegisterPage />);
+    expect(screen.getByRole("button", { name: "Show password" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show confirm password" })).toBeTruthy();
+  });
+
+  it("explains a suspension, with the administrator's reason, instead of a generic error", async () => {
+    post.mockRejectedValue({ response: { status: 403, data: { error: "Your account is suspended", code: "ACCOUNT_SUSPENDED", reason: "Spam listings" } } });
+    renderAt("/login", <LoginPage />);
+    type("login-email", "sam@fanshaweonline.ca");
+    type("login-password", "Password1!");
+    submit();
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Your account is suspended.");
+    expect(alert.textContent).toContain("Reason: Spam listings. Contact");
+  });
+
+  it("tells a student whose session ended because of a suspension", () => {
+    renderAt("/login", <LoginPage />, ["/login?suspended=true"]);
+    expect(screen.getByRole("alert").textContent).toContain("Your account is suspended");
+    expect(screen.queryByText(/session expired/)).toBeNull();
   });
 });

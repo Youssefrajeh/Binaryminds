@@ -8,6 +8,8 @@ import { sendEmail, isAllowedDomain } from "../lib/email.js";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { passwordSchema } from "../lib/password.js";
 import { verificationEmailHtml, passwordResetEmailHtml } from "../lib/email-templates.js";
+import { SUSPENDED_RESPONSE } from "../middleware/auth.middleware.js";
+import { FANSHAWE_EMAIL_ERROR } from "@campushub/shared";
 
 export const authRouter = Router();
 
@@ -52,34 +54,42 @@ const nameSchema = (label: string) =>
     .min(1, { error: `${label} is required` })
     .max(50, { error: `${label} must be 50 characters or fewer` });
 
+// Every auth route stores and looks up the same lowercase Fanshawe address
+const fanshaweEmail = z
+  .string({ error: "Email is required" })
+  .trim()
+  .toLowerCase()
+  .email({ error: FANSHAWE_EMAIL_ERROR })
+  .refine(isAllowedDomain, { error: FANSHAWE_EMAIL_ERROR });
+
 const registerSchema = z.object({
   firstName: nameSchema("First name"),
   lastName: nameSchema("Last name"),
-  email: z.string().email(),
+  email: fanshaweEmail,
   password: passwordSchema,
   acceptTerms: z.literal(true, { error: "You must accept the Terms and Conditions to sign up" }),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: fanshaweEmail,
   password: z.string().min(1),
 });
 
 const verifySchema = z.object({
-  email: z.string().email(),
+  email: fanshaweEmail,
   otp: z.string().length(6),
 });
 
 const resendSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  email: fanshaweEmail,
 });
 
 const forgotSchema = z.object({
-  email: z.string().email(),
+  email: fanshaweEmail,
 });
 
 const resetSchema = z.object({
-  email: z.string().email(),
+  email: fanshaweEmail,
   otp: z.string().length(6),
   newPassword: passwordSchema,
 });
@@ -145,11 +155,6 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
 
     const { firstName, lastName, email, password } = parsed.data;
 
-    if (!isAllowedDomain(email)) {
-      res.status(400).json({ error: "Only Fanshawe student email addresses are allowed" });
-      return;
-    }
-
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing && existing.status !== "PENDING") {
       res.status(409).json({ error: "An account with this email already exists" });
@@ -165,7 +170,7 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
     // out while the hashes are computed and the pending record is saved.
     const emailSent = sendEmail({
       to: email,
-      subject: "CampusHub — Verify your email",
+      subject: "campus-hub — Verify your email",
       html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES, firstName),
     });
 
@@ -228,7 +233,7 @@ authRouter.post("/resend-verification", attemptLimit("resend", true), async (req
       // Send first: if the email fails, the code the student already has stays valid
       await sendEmail({
         to: email,
-        subject: "CampusHub — Your new verification code",
+        subject: "campus-hub — Your new verification code",
         html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES, pending.firstName),
       });
 
@@ -354,7 +359,7 @@ authRouter.post("/login", attemptLimit("login", true), async (req, res) => {
     }
 
     if (user.status === "SUSPENDED") {
-      res.status(403).json({ error: "Your account has been suspended" });
+      res.status(403).json({ ...SUSPENDED_RESPONSE, reason: user.suspendedReason || null });
       return;
     }
 
@@ -404,7 +409,7 @@ authRouter.post("/forgot-password", attemptLimit("forgot", true), async (req, re
 
     await sendEmail({
       to: email,
-      subject: "CampusHub — Reset your password",
+      subject: "campus-hub — Reset your password",
       html: passwordResetEmailHtml(otp, OTP_EXPIRY_MINUTES),
     });
 

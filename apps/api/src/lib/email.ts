@@ -38,7 +38,7 @@ function replyToAddress(fallback: string | undefined): string | undefined {
 /* ------------------------------------------------------------------ */
 
 async function sendViaBrevo(apiKey: string, { to, subject, html, text }: SendEmailInput): Promise<void> {
-  const fromName = process.env.EMAIL_FROM_NAME ?? "CampusHub";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "campus-hub";
   const fromAddress = process.env.EMAIL_FROM_ADDRESS;
   if (!fromAddress) throw new Error("EMAIL_FROM_ADDRESS must be set to send via Brevo");
 
@@ -78,7 +78,8 @@ ${html}`);
 }
 
 export function isAllowedDomain(email: string): boolean {
-  const domain = process.env.ALLOWED_EMAIL_DOMAIN ?? "fanshaweonline.ca";
+  // An empty variable must not widen the check to every address ending in "@"
+  const domain = process.env.ALLOWED_EMAIL_DOMAIN?.trim() || "fanshaweonline.ca";
   return email.toLowerCase().endsWith(`@${domain}`);
 }
 

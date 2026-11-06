@@ -3,6 +3,10 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
+import { parseUpload, uploadSchema } from "../lib/files.js";
+import { MessageError, sendMessage } from "../lib/messages.js";
+import { createRateLimiter } from "../lib/rateLimit.js";
+import { emitToUsers } from "../socket/io.js";
 import {
   conversationInclude,
   conversationSummaryInclude,
@@ -19,6 +23,44 @@ import {
 export const conversationsRouter = Router();
 
 conversationsRouter.use(requireAuth);
+
+const uploadLimiter = createRateLimiter(10, 60_000);
+
+/* ------------------------------------------------------------------ */
+/*  POST /conversations/:id/files — share a file as a message          */
+/* ------------------------------------------------------------------ */
+
+conversationsRouter.post("/:id/files", async (req, res) => {
+  const userId = req.user!.userId;
+  if (!uploadLimiter.tryConsume(userId)) {
+    res.status(429).json({ error: "You're sharing files too quickly. Please wait a minute." });
+    return;
+  }
+  const parsed = uploadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid file" });
+    return;
+  }
+  const { name, data, text, clientId } = parsed.data;
+  const upload = parseUpload(name, data);
+  if (typeof upload === "string") {
+    res.status(400).json({ error: upload });
+    return;
+  }
+  try {
+    const { message, memberIds, accepted } = await sendMessage(userId, { conversationId: req.params.id, text: text ?? "", clientId }, upload);
+    const dto = toMessageDto(message);
+    emitToUsers(memberIds, "message:new", { message: dto, accepted });
+    res.status(201).json(dto);
+  } catch (err) {
+    if (err instanceof MessageError) {
+      res.status(err.message === "Conversation not found" ? 404 : 409).json({ error: err.message });
+      return;
+    }
+    console.error("File share error:", err);
+    res.status(500).json({ error: "Could not share this file" });
+  }
+});
 
 const startSchema = z.object({
   recipientId: z.string().min(1, "recipientId is required"),

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { Prisma, type Conversation, type Message } from "@prisma/client";
+import { sharedFileUrl } from "@campushub/shared";
+import type { SharedUpload } from "./files.js";
 import { prisma } from "./prisma.js";
 
 export const MAX_MESSAGE_LENGTH = 2000;
@@ -8,7 +10,7 @@ export const MAX_PENDING_MESSAGES = 3;
 export const sendMessageSchema = z.object({
   conversationId: z.string().min(1),
   text: z.string().max(MAX_MESSAGE_LENGTH, `Messages can be at most ${MAX_MESSAGE_LENGTH} characters`),
-  // Attachments are a stretch goal: the schema stores them, but uploads are not enabled yet
+  // Files arrive through POST /conversations/:id/files, so socket clients cannot forge attachments
   attachments: z.array(z.unknown()).max(0, "Attachments are not supported yet").optional(),
   clientId: z.string().min(1).max(64).optional(),
 });
@@ -28,14 +30,14 @@ export interface SentMessage {
  * nobody in it has blocked the other. Retries with the same clientId return
  * the original message instead of creating a duplicate.
  */
-export async function sendMessage(senderId: string, input: unknown): Promise<SentMessage> {
+export async function sendMessage(senderId: string, input: unknown, upload?: SharedUpload): Promise<SentMessage> {
   const parsed = sendMessageSchema.safeParse(input);
   if (!parsed.success) {
     throw new MessageError(parsed.error.issues[0]?.message ?? "Invalid message");
   }
 
   const { conversationId, clientId } = parsed.data;
-  const text = parsed.data.text.trim();
+  const text = parsed.data.text.trim() || (upload ? `Shared ${upload.name}` : "");
   if (!text) {
     throw new MessageError("Message cannot be empty");
   }
@@ -68,6 +70,10 @@ export async function sendMessage(senderId: string, input: unknown): Promise<Sen
         const before = participant.conversation;
 
         const pending = before.type === "DIRECT" && before.status === "PENDING";
+        // A stranger's message request should not be able to deliver a file
+        if (upload && pending) {
+          throw new MessageError("Files can be shared once your message request is accepted");
+        }
         const first = pending && !before.lastMessage ? await db.message.findFirst({ where: { conversationId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }) : null;
         const requester = before.lastMessage ? before.requestedById : first?.senderId ?? senderId;
 
@@ -83,8 +89,18 @@ export async function sendMessage(senderId: string, input: unknown): Promise<Sen
         const accepted = pending && Boolean(before.lastMessage || first) && requester !== senderId;
 
         const message = await db.message.create({
-          data: { conversationId, senderId, text, attachments: [], clientId: clientId ?? null },
+          data: {
+            conversationId, senderId, text, clientId: clientId ?? null,
+            attachments: upload ? [{ url: sharedFileUrl(upload.id), name: upload.name, mimeType: upload.mimeType, size: upload.size }] : [],
+          },
         });
+
+        if (upload) {
+          const group = before.studyGroupId ? await db.studyGroup.findUnique({ where: { id: before.studyGroupId }, select: { courseCode: true } }) : null;
+          await db.sharedFile.create({
+            data: { ...upload, uploaderId: senderId, conversationId, messageId: message.id, courseCode: group?.courseCode ?? null, removedAt: null },
+          });
+        }
 
         const conversation = await db.conversation.update({
           where: { id: conversationId },

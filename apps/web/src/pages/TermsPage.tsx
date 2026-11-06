@@ -183,7 +183,7 @@ export function TermsPage() {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <Nav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
         <h1 className="text-3xl font-semibold tracking-tight text-ink">Terms and Conditions</h1>
         <p className="mt-2 text-sm text-muted">Effective {EFFECTIVE_DATE}</p>
 

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
-import type { StudyGroupDto, StudyGroupMemberDto } from "@campushub/shared";
+import { COURSE_CODE_HINT, COURSE_CODE_PATTERN, normalizeCourseCode, type StudyGroupDto, type StudyGroupMemberDto } from "@campushub/shared";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { groupKeyFor } from "../lib/conversations.js";
@@ -18,23 +18,27 @@ export const studyGroupsRouter = Router();
 studyGroupsRouter.use(requireAuth);
 
 const createSchema = z.object({
-  name: z.string().trim().min(1, "Group name is required").max(80),
+  name: z.string({ error: "Group name is required" }).trim().min(1, "Group name is required").max(80),
   courseCode: z
-    .string()
+    .string({ error: "Course code is required" })
     .trim()
-    .min(2, "Course code is required")
+    .min(1, "Course code is required")
     .max(30)
-    .regex(/^[a-zA-Z0-9][a-zA-Z0-9 -]*$/, "Use a course code such as INFO-5103")
-    .transform((code) => code.replace(/[ -]/g, "").toUpperCase())
-    .refine((code) => code.length >= 2, "Course code is required"),
-  description: z.string().trim().min(1, "Description is required").max(300),
+    .regex(COURSE_CODE_PATTERN, COURSE_CODE_HINT)
+    .transform(normalizeCourseCode),
+  description: z.string({ error: "Description is required" }).trim().min(1, "Description is required").max(300),
 });
 const pageSchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
 });
 const PAGE_SIZE = 20;
 
-type GroupWithCount = Prisma.StudyGroupGetPayload<{ include: { _count: { select: { members: true } } } }>;
+// Memberships of deleted or inactive accounts stay in the database; the count and the
+// members list both use this filter so they always agree.
+const listedMember = { user: { is: { status: "ACTIVE" } } } satisfies Prisma.StudyGroupMemberWhereInput;
+const withMemberCount = { _count: { select: { members: { where: listedMember } } } } satisfies Prisma.StudyGroupInclude;
+
+type GroupWithCount = Prisma.StudyGroupGetPayload<{ include: typeof withMemberCount }>;
 
 function toDto(group: GroupWithCount, isMember: boolean, conversationId: string | null): StudyGroupDto {
   return {
@@ -79,7 +83,7 @@ studyGroupsRouter.get("/", async (req, res) => {
   try {
     const groups = await prisma.studyGroup.findMany({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      include: { _count: { select: { members: true } } },
+      include: withMemberCount,
       skip: (parsed.data.page - 1) * PAGE_SIZE,
       take: PAGE_SIZE + 1,
     });
@@ -108,7 +112,7 @@ studyGroupsRouter.post("/", async (req, res) => {
     const { group, conversation } = await prisma.$transaction(async (db) => {
       const group = await db.studyGroup.create({
         data: { ...parsed.data, createdById: userId, members: { create: { userId } } },
-        include: { _count: { select: { members: true } } },
+        include: withMemberCount,
       });
       const conversation = await createGroupConversation(group, userId, db);
       return { group, conversation };
@@ -163,7 +167,7 @@ studyGroupsRouter.post("/:id/leave", async (req, res) => {
 
 studyGroupsRouter.get("/:id", async (req, res) => {
   try {
-    const group = await prisma.studyGroup.findUnique({ where: { id: req.params.id }, include: { _count: { select: { members: true } } } });
+    const group = await prisma.studyGroup.findUnique({ where: { id: req.params.id }, include: withMemberCount });
     if (!group) { res.status(404).json({ error: "Study group not found" }); return; }
     const [details] = await toDtos([group], req.user!.userId);
     res.json({ ...details, createdById: group.createdById });
@@ -180,7 +184,7 @@ studyGroupsRouter.get("/:id/members", async (req, res) => {
     const group = await prisma.studyGroup.findUnique({ where: { id: req.params.id }, select: { createdById: true } });
     if (!group) { res.status(404).json({ error: "Study group not found" }); return; }
     const members = await prisma.studyGroupMember.findMany({
-      where: { studyGroupId: req.params.id, user: { is: { status: "ACTIVE" } } },
+      where: { studyGroupId: req.params.id, ...listedMember },
       orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
       skip: (parsed.data.page - 1) * PAGE_SIZE, take: PAGE_SIZE + 1,
       select: { joinedAt: true, user: { select: { id: true, email: true, profile: { select: { displayName: true, avatarUrl: true, program: true, yearOfStudy: true } } } } },

@@ -22,7 +22,9 @@ api.interceptors.response.use(
       localStorage.removeItem("campushub_user");
       localStorage.removeItem("campushub_last_active");
       if (window.location.pathname !== "/login") {
-        window.location.href = "/login?expired=true";
+        // A suspension ends the session too, but the student should hear why
+        const suspended = error.response.data?.code === "ACCOUNT_SUSPENDED";
+        window.location.href = suspended ? "/login?suspended=true" : "/login?expired=true";
       }
     }
     return Promise.reject(error);

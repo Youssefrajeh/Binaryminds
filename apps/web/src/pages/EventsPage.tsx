@@ -66,7 +66,7 @@ export function EventsPage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">{saved ? "Saved Events" : "Campus Events"}</h1>

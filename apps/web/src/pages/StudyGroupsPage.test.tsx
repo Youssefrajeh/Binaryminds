@@ -228,3 +228,35 @@ describe("study-group discovery and members", () => {
     expect(screen.queryByRole("button", { name: "Leave" })).toBeNull();
   });
 });
+
+describe("study-group rules shared with the API", () => {
+  it.each(["1105", "INFO", "INFO--5103"])("rejects course code %j before sending a request", async (code) => {
+    renderPage();
+    await openForm();
+    fillForm();
+    fireEvent.change(screen.getByLabelText("Course code *"), { target: { value: code } });
+    fireEvent.submit(screen.getByRole("form", { name: "Create study group" }));
+    expect(await screen.findByText("Use a course code such as INFO-5103.")).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("shows 'No description added' for older groups without one", async () => {
+    get.mockResolvedValue({ data: [{ ...group, courseCode: "1105", description: null }] });
+    renderPage();
+    expect(await screen.findByText("No description added.")).toBeTruthy();
+    cleanup();
+    get.mockImplementation(async (url: string) => ({ data: url.endsWith("/members") ? [member] : { ...group, description: null, createdById: member.id } }));
+    renderDetails();
+    expect(await screen.findByText("No description added.")).toBeTruthy();
+  });
+
+  it("shows a not-found state with a way back for an unknown group id", async () => {
+    get.mockRejectedValue({ response: { status: 404, data: { error: "Study group not found" } } });
+    render(<MemoryRouter initialEntries={["/study-groups/new"]}><Routes>
+      <Route path="/study-groups/:id" element={<StudyGroupDetailsPage />} />
+    </Routes></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Study group not found" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to study groups" }).getAttribute("href")).toBe("/study-groups");
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

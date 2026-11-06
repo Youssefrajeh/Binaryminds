@@ -43,7 +43,7 @@ export function EventCard({ event, management = false, onRsvpChange }: { event: 
       <dl className="mt-4 space-y-1 text-sm text-ink-soft">
         <div className="flex gap-1.5"><dt className="font-medium text-ink">Time:</dt><dd className="min-w-0">{formatTimeRange(event.startsAt, event.endsAt)}</dd></div>
         <div className="flex gap-1.5"><dt className="font-medium text-ink">Where:</dt><dd className="min-w-0 break-words">{event.location}</dd></div>
-        <div className="flex gap-1.5"><dt className="font-medium text-ink">Organizer:</dt><dd className="min-w-0 break-words">{event.organizer?.profile?.displayName || "CampusHub organizer"}</dd></div>
+        <div className="flex gap-1.5"><dt className="font-medium text-ink">Organizer:</dt><dd className="min-w-0 break-words">{event.organizer?.profile?.displayName || "campus-hub organizer"}</dd></div>
       </dl>
       <div className="mt-auto flex flex-wrap gap-3 pt-5">
         {onRsvpChange && (event.isRsvped || (event.status === "PUBLISHED" && !ended)) && (

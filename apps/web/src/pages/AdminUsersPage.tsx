@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { AdminUserDto, AssignableRole } from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import { Avatar } from "../components/Avatar";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import api from "../lib/api";
 import { apiErrorMessage } from "../lib/errors";
@@ -19,6 +20,10 @@ export function AdminUsersPage() {
   const [drafts, setDrafts] = useState<Record<string, AssignableRole>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [statusTarget, setStatusTarget] = useState<{ user: AdminUserDto; status: "ACTIVE" | "SUSPENDED" } | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState("");
+  const [suspendReason, setSuspendReason] = useState("");
   useEffect(() => {
     let stale = false;
     const timer = setTimeout(async () => {
@@ -46,9 +51,23 @@ export function AdminUsersPage() {
     } catch (err) { setError(apiErrorMessage(err, "Could not update the role.")); }
     finally { setSaving(null); }
   }
+
+  async function changeStatus() {
+    if (!statusTarget || statusBusy) return;
+    const { user, status } = statusTarget;
+    setStatusBusy(true); setStatusError(""); setError(""); setSuccess("");
+    try {
+      await api.patch<AdminUserDto>(`/admin/users/${user.id}/status`, { status, ...(status === "SUSPENDED" && suspendReason.trim() ? { reason: suspendReason.trim() } : {}) });
+      setSuccess(`${user.profile?.displayName || user.email} ${status === "SUSPENDED" ? "has been suspended" : "has been reactivated"}.`);
+      setStatusTarget(null);
+      setReloadKey((key) => key + 1);
+    } catch (err) { setStatusError(apiErrorMessage(err, "Could not update the account.")); }
+    finally { setStatusBusy(false); }
+  }
+  const statusTargetName = statusTarget?.user.profile?.displayName || statusTarget?.user.email;
   return (
     <div className="min-h-screen bg-canvas"><Nav />
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
         <p className="text-xs font-semibold uppercase tracking-wide text-brand">Administration</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink">Manage users</h1>
         <Link to="/admin/reports" className="btn-secondary mt-4 inline-flex">Review reports</Link>
@@ -63,16 +82,26 @@ export function AdminUsersPage() {
         {!loading && !error && users.length === 0 && <p className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center text-muted">No users match this search.</p>}
         {!loading && <ul aria-label="Users" className="mt-6 space-y-3">{users.map((user) => (
           <li key={user.id} className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-5 shadow-sm lg:flex-row lg:items-center">
-            <div className="flex min-w-0 flex-1 items-center gap-3"><Avatar name={user.profile?.displayName || user.email} src={user.profile?.avatarUrl} /><div className="min-w-0"><h2 className="break-words font-semibold text-ink">{user.profile?.displayName || "Student"}</h2><p className="break-all text-sm text-ink-soft">{user.email}</p><div className="mt-2 flex flex-wrap gap-2"><StatusBadge tone={user.role === "ORGANIZER" ? "brand" : "neutral"}>{user.role === "ADMINISTRATOR" ? "Administrator" : user.role === "ORGANIZER" ? "Organizer" : "Student"}</StatusBadge><StatusBadge tone={user.status === "ACTIVE" && user.emailVerifiedAt ? "success" : "neutral"}>{user.status === "ACTIVE" && user.emailVerifiedAt ? "Verified" : user.status === "SUSPENDED" ? "Suspended" : "Unverified"}</StatusBadge></div></div></div>
+            <div className="flex min-w-0 flex-1 items-center gap-3"><Avatar name={user.profile?.displayName || user.email} src={user.profile?.avatarUrl} /><div className="min-w-0"><h2 className="break-words font-semibold text-ink">{user.profile?.displayName || "Student"}</h2><p className="break-all text-sm text-ink-soft">{user.email}</p><div className="mt-2 flex flex-wrap gap-2"><StatusBadge tone={user.role === "ORGANIZER" ? "brand" : "neutral"}>{user.role === "ADMINISTRATOR" ? "Administrator" : user.role === "ORGANIZER" ? "Organizer" : "Student"}</StatusBadge><StatusBadge tone={user.status === "ACTIVE" && user.emailVerifiedAt ? "success" : user.status === "SUSPENDED" ? "danger" : "neutral"}>{user.status === "ACTIVE" && user.emailVerifiedAt ? "Verified" : user.status === "SUSPENDED" ? "Suspended" : "Unverified"}</StatusBadge></div>{user.status === "SUSPENDED" && <p className="mt-2 break-words text-xs text-muted">{user.suspendedAt ? <>Suspended <time dateTime={user.suspendedAt}>{new Date(user.suspendedAt).toLocaleDateString()}</time></> : "Suspended"}{user.suspendedReason ? ` — ${user.suspendedReason}` : ""}</p>}</div></div>
             {user.role === "ADMINISTRATOR" ? <p className="text-sm text-muted">Protected administrator account</p> : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div><label htmlFor={`role-${user.id}`} className="field-label">Role for {user.profile?.displayName || user.email}</label><select id={`role-${user.id}`} className="field-input" disabled={saving !== null} value={drafts[user.id] ?? user.role} onChange={(e) => setDrafts((current) => ({ ...current, [user.id]: e.target.value as AssignableRole }))}><option value="STUDENT">Student</option><option value="ORGANIZER" disabled={user.status !== "ACTIVE" || !user.emailVerifiedAt}>Organizer</option><option value="ADMINISTRATOR" disabled={user.status !== "ACTIVE" || !user.emailVerifiedAt}>Administrator</option></select></div>
                 <button className="btn-primary shrink-0" aria-label={`Save role for ${user.profile?.displayName || user.email}`} disabled={saving !== null || !drafts[user.id] || drafts[user.id] === user.role} onClick={() => saveRole(user)}>{saving === user.id ? "Saving..." : "Save role"}</button>
+                {user.status === "ACTIVE" && <button className="btn-secondary shrink-0 text-danger" aria-label={`Suspend ${user.profile?.displayName || user.email}`} onClick={() => { setStatusError(""); setSuspendReason(""); setStatusTarget({ user, status: "SUSPENDED" }); }}>Suspend</button>}
+                {user.status === "SUSPENDED" && <button className="btn-secondary shrink-0" aria-label={`Reactivate ${user.profile?.displayName || user.email}`} onClick={() => { setStatusError(""); setStatusTarget({ user, status: "ACTIVE" }); }}>Reactivate</button>}
               </div>
             )}
           </li>
         ))}</ul>}
         <div className="mt-8 flex items-center justify-between gap-3"><button className="btn-secondary" disabled={loading || page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span className="text-sm text-muted">Page {page}</span><button className="btn-secondary" disabled={loading || !hasMore} onClick={() => setPage((value) => value + 1)}>Next</button></div>
+        <ConfirmDialog open={statusTarget !== null} title={statusTarget?.status === "SUSPENDED" ? `Suspend ${statusTargetName}?` : `Reactivate ${statusTargetName}?`} confirmLabel={statusTarget?.status === "SUSPENDED" ? "Suspend account" : "Reactivate account"} busyLabel="Saving..." busy={statusBusy} error={statusError} onConfirm={changeStatus} onCancel={() => setStatusTarget(null)}>
+          <p>{statusTarget?.status === "SUSPENDED" ? "They will be signed out straight away and won't be able to log in. Their content stays in place." : "They will be able to log in and use campus-hub again."}</p>
+          {statusTarget?.status === "SUSPENDED" && <>
+            <label htmlFor="suspend-reason" className="field-label mt-4">Reason (optional)</label>
+            <textarea id="suspend-reason" rows={3} maxLength={500} disabled={statusBusy} className="field-input resize-y" value={suspendReason} onChange={(e) => setSuspendReason(e.target.value)} />
+            <p className="mt-1 text-xs text-muted">Shown to the student when they try to log in.</p>
+          </>}
+        </ConfirmDialog>
       </main>
     </div>
   );

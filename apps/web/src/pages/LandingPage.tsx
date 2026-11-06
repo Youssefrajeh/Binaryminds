@@ -7,8 +7,10 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <Nav />
-      <Hero />
-      <Sections />
+      <main id="main">
+        <Hero />
+        <Sections />
+      </main>
       <Footer />
     </div>
   );

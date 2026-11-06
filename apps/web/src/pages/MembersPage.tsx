@@ -47,7 +47,7 @@ export function MembersPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
         <h1 className="text-4xl font-bold">Find students</h1>
         <p className="mt-2 text-ink-soft">Find classmates by name, program, course, or interest. Combine filters to narrow your search.</p>
         <fieldset className="mt-8 rounded-2xl border border-line bg-surface p-5 shadow-sm">

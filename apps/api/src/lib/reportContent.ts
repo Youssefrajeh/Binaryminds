@@ -1,12 +1,19 @@
 import { createHash } from "node:crypto";
 import type { Attachment, Message, Prisma } from "@prisma/client";
-import { safeAttachmentUrl, type ReportSnapshot, type ReportTarget } from "@campushub/shared";
+import { safeAttachmentUrl, sharedFileIdFrom, type ReportSnapshot, type ReportTarget } from "@campushub/shared";
 
 export class ReportError extends Error {
   constructor(message: string, public status = 404) { super(message); }
 }
 export function attachmentKey(file: Attachment) {
   return createHash("sha256").update(JSON.stringify([file.url, file.name, file.mimeType, file.size])).digest("hex");
+}
+
+async function isLibraryFile(db: Prisma.TransactionClient, file: Attachment) {
+  const id = sharedFileIdFrom(file.url);
+  if (!id) return false;
+  const stored = await db.sharedFile.findUnique({ where: { id }, select: { courseCode: true, removedAt: true } });
+  return Boolean(stored?.courseCode && !stored.removedAt);
 }
 
 export async function reportContent(db: Prisma.TransactionClient, userId: string, type: ReportTarget, id: string, attachmentIndex?: number) {
@@ -24,9 +31,10 @@ export async function reportContent(db: Prisma.TransactionClient, userId: string
     const message = await db.message.findUnique({ where: { id } });
     if (!message || message.removedAt) throw new ReportError("This content is no longer available");
     const membership = await db.participant.findUnique({ where: { conversationId_userId: { conversationId: message.conversationId, userId } }, select: { id: true } });
-    if (!membership) throw new ReportError("This content is no longer available");
+    const file = type === "FILE" && attachmentIndex !== undefined ? message.attachments[attachmentIndex] : undefined;
+    // Students can report a course library file without having joined its study group.
+    if (!membership && !(file && await isLibraryFile(db, file))) throw new ReportError("This content is no longer available");
     if (type === "FILE") {
-      const file = attachmentIndex === undefined ? undefined : message.attachments[attachmentIndex];
       if (!file) throw new ReportError("This shared file is no longer available");
       fileKey = attachmentKey(file);
       snapshot = { title: file.name.slice(0, 200), text: message.text.slice(0, 2000), authorId: message.senderId, href: null, fileName: file.name.slice(0, 200), fileUrl: safeAttachmentUrl(file.url), fileSize: file.size };
@@ -50,6 +58,9 @@ export async function removeReportedContent(db: Prisma.TransactionClient, report
     if (!message || message.removedAt) return null;
     const attachments = report.targetType === "FILE" ? message.attachments.filter((file) => attachmentKey(file) !== report.fileKey) : [];
     if (report.targetType === "FILE" && attachments.length === message.attachments.length) return null;
+    // Detaching alone would leave a stored file downloadable from the course library.
+    const removedFiles = message.attachments.filter((file) => !attachments.includes(file)).flatMap((file) => sharedFileIdFrom(file.url) ?? []);
+    if (removedFiles.length) await db.sharedFile.updateMany({ where: { id: { in: removedFiles } }, data: { removedAt: now } });
     const updated = await db.message.update({ where: { id: message.id }, data: report.targetType === "MESSAGE"
       ? { text: "[Message removed by an administrator]", attachments: [], removedAt: now }
       : { attachments } });

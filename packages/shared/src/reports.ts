@@ -8,7 +8,8 @@ export const REPORT_REASONS = [
 ] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number]["value"];
 export type ReportTarget = "LISTING" | "LOST_FOUND_POST" | "MESSAGE" | "FILE";
-export type ReportState = "OPEN" | "RESOLVED" | "DISMISSED";
+/** REMOVED is a resolved report whose content an administrator took down */
+export type ReportState = "OPEN" | "REMOVED" | "RESOLVED" | "DISMISSED";
 export type ReportAction = "REMOVE_CONTENT" | "RESOLVE" | "DISMISS";
 export const REPORT_TARGET_LABELS: Record<ReportTarget, string> = {
   LISTING: "Marketplace listing", LOST_FOUND_POST: "Lost & Found", MESSAGE: "Message", FILE: "Shared file",
@@ -40,7 +41,7 @@ export interface AdminReportDto {
   createdAt: string;
   reporter: { name: string; email: string | null };
   snapshot: ReportSnapshot | null;
-  actions: { action: string; note: string | null; createdAt: string }[];
+  actions: { action: string; note: string | null; createdAt: string; admin: string }[];
 }
 
 /** Stored attachments may predate current validation. Never render an unsafe URL. */

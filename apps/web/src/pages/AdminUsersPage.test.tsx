@@ -69,6 +69,53 @@ describe("Admin users page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save role for Sam Student" }));
     await screen.findByText("Not permitted");
   });
+  it("suspends an account only after confirmation", async () => {
+    get.mockResolvedValue({ data: [student], headers: {} });
+    patch.mockResolvedValue({ data: { ...student, status: "SUSPENDED" } });
+    showUsers();
+    fireEvent.click(await screen.findByRole("button", { name: "Suspend Sam Student" }));
+    expect(patch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Suspend account", hidden: true }));
+    await screen.findByText("Sam Student has been suspended.");
+    expect(patch).toHaveBeenCalledWith("/admin/users/s1/status", { status: "SUSPENDED" });
+  });
+  it("sends an optional suspension reason and shows it on the account", async () => {
+    get.mockResolvedValueOnce({ data: [student], headers: {} })
+      .mockResolvedValue({ data: [{ ...student, status: "SUSPENDED", suspendedAt: "2026-11-01T10:00:00Z", suspendedReason: "Spam listings" }], headers: {} });
+    patch.mockResolvedValue({ data: { ...student, status: "SUSPENDED" } });
+    showUsers();
+    fireEvent.click(await screen.findByRole("button", { name: "Suspend Sam Student" }));
+    fireEvent.change(screen.getByLabelText("Reason (optional)"), { target: { value: "  Spam listings  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Suspend account", hidden: true }));
+    await screen.findByText("Sam Student has been suspended.");
+    expect(patch).toHaveBeenCalledWith("/admin/users/s1/status", { status: "SUSPENDED", reason: "Spam listings" });
+    expect(await screen.findByText(/— Spam listings/)).toBeTruthy();
+  });
+  it("reactivates a suspended account and offers no suspend action", async () => {
+    get.mockResolvedValue({ data: [{ ...student, status: "SUSPENDED" }], headers: {} });
+    patch.mockResolvedValue({ data: student });
+    showUsers();
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Sam Student" }));
+    expect(screen.queryByRole("button", { name: "Suspend Sam Student" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate account", hidden: true }));
+    await screen.findByText("Sam Student has been reactivated.");
+    expect(patch).toHaveBeenCalledWith("/admin/users/s1/status", { status: "ACTIVE" });
+  });
+  it("offers no suspend or reactivate action for pending accounts", async () => {
+    get.mockResolvedValue({ data: [{ ...student, status: "PENDING", emailVerifiedAt: null }], headers: {} });
+    showUsers();
+    await screen.findByText("Sam Student");
+    expect(screen.queryByRole("button", { name: /Suspend|Reactivate/ })).toBeNull();
+  });
+  it("keeps the dialog open and shows the error when suspending fails", async () => {
+    get.mockResolvedValue({ data: [student], headers: {} });
+    patch.mockRejectedValue({ response: { data: { error: "Only active accounts can be suspended" } } });
+    showUsers();
+    fireEvent.click(await screen.findByRole("button", { name: "Suspend Sam Student" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suspend account", hidden: true }));
+    await screen.findByText("Only active accounts can be suspended");
+    expect(screen.getByRole("button", { name: "Suspend account", hidden: true })).toBeTruthy();
+  });
   it("blocks students from opening the admin route directly", () => {
     auth.user.role = "STUDENT";
     render(<MemoryRouter><RoleRoute roles={["ADMINISTRATOR"]}><AdminUsersPage /></RoleRoute></MemoryRouter>);

@@ -24,7 +24,7 @@ export function AuthLayout({ title, subtitle, children, footer, hero }: AuthLayo
         </div>
       </header>
 
-      <main className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">
+      <main id="main" className="flex flex-1 items-start justify-center px-4 pt-8 pb-16 sm:items-center sm:pt-0">
         <div className="fade-up w-full max-w-105">
           {hero && <div className="relative z-10 -mb-3 flex justify-center">{hero}</div>}
           <div className="rounded-2xl border border-line bg-surface p-8 shadow-sm">

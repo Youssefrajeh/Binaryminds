@@ -22,6 +22,11 @@ export function emitToUsers(userIds: string[], event: string, payload: unknown) 
 /** Public-content changes contain only a type and ID, never private message data. */
 export function emitToAll(event: string, payload: unknown) { io?.emit(event, payload); }
 
+/** Ends every open connection for a user. Sockets only check the account when connecting. */
+export function disconnectUser(userId: string) {
+  io?.in(userRoom(userId)).disconnectSockets(true);
+}
+
 /** Removes a user's sockets from a conversation room, e.g. after leaving a study group */
 export function removeUserFromConversationRoom(userId: string, conversationId: string) {
   io?.in(userRoom(userId)).socketsLeave(convoRoom(conversationId));

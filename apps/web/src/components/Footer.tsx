@@ -24,7 +24,12 @@ export function Footer() {
             <p className={heading}>Explore</p>
             <ul className="mt-3 space-y-2">
               <li><Link to="/" className={linkClass}>Home</Link></li>
+              <li><Link to="/marketplace" className={linkClass}>Marketplace</Link></li>
+              <li><Link to="/lost-found" className={linkClass}>Lost &amp; Found</Link></li>
+              <li><Link to="/events" className={linkClass}>Events</Link></li>
               <li><Link to="/study-groups" className={linkClass}>Study groups</Link></li>
+              <li><Link to="/files" className={linkClass}>Course files</Link></li>
+              <li><Link to="/members" className={linkClass}>Find students</Link></li>
               <li><Link to="/messages" className={linkClass}>Messages</Link></li>
             </ul>
           </nav>
@@ -70,7 +75,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-2 border-t border-line pt-6 text-xs text-muted sm:flex-row">
-          <p>© {new Date().getFullYear()} CampusHub. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} campus-hub. All rights reserved.</p>
           <p>
             Crafted by <span className="font-medium text-ink-soft">Binary Minds</span>
           </p>

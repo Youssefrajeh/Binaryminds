@@ -14,6 +14,9 @@ const prisma = prismaClient as unknown as PrismaMock;
 const app = createApp();
 const aliceAuth = `Bearer ${signToken({ userId: "alice", role: "STUDENT" })}`;
 
+// Member counts skip memberships of deleted or inactive accounts, matching the members list
+const countedMembers = { _count: { select: { members: { where: { user: { is: { status: "ACTIVE" } } } } } } };
+
 const group = {
   id: "sg1",
   name: "Midterm prep",
@@ -59,7 +62,7 @@ describe("POST /api/study-groups", () => {
     expect(res.status).toBe(201);
     expect(prisma.studyGroup.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ courseCode: "INFO5103", createdById: "alice", members: { create: { userId: "alice" } } }),
-      include: { _count: { select: { members: true } } },
+      include: countedMembers,
     });
     expect(prisma.conversation.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -78,10 +81,32 @@ describe("POST /api/study-groups", () => {
   it.each([
     { name: " " }, { courseCode: " " }, { description: " " }, { description: null }, { description: undefined },
     { name: "x".repeat(81) }, { courseCode: "x".repeat(31) }, { courseCode: "<script>" }, { courseCode: "--" }, { description: "x".repeat(301) },
+    { courseCode: "1105" }, { courseCode: "INFO" }, { courseCode: "INFO-51" }, { courseCode: "INFO--5103" }, { courseCode: "5103-INFO" },
   ])("rejects invalid group fields: %j", async (fields) => {
     const res = await request(app).post("/api/study-groups").set("Authorization", aliceAuth).send({ name: "Group", courseCode: "INFO5103", description: "Study together", ...fields });
     expect(res.status).toBe(400);
     expect(prisma.studyGroup.create).not.toHaveBeenCalled();
+  });
+
+  it.each([["INFO-5103", "INFO5103"], ["info5103", "INFO5103"], ["Info 5103", "INFO5103"], [" comp-1234a ", "COMP1234A"]])("accepts course code %j and stores it as %s", async (input, stored) => {
+    prisma.studyGroup.create.mockResolvedValue({ ...group, courseCode: stored, description: "Review", _count: { members: 1 } });
+    prisma.conversation.create.mockResolvedValue({ id: "c-group" });
+    const res = await request(app).post("/api/study-groups").set("Authorization", aliceAuth).send({ name: "Group", courseCode: input, description: "Review" });
+    expect(res.status).toBe(201);
+    expect(prisma.studyGroup.create.mock.calls[0][0].data.courseCode).toBe(stored);
+  });
+
+  it.each([["name", "Group name is required"], ["courseCode", "Course code is required"], ["description", "Description is required"]])("names a missing %s", async (field, message) => {
+    const body: Record<string, string> = { name: "Group", courseCode: "INFO5103", description: "Review" };
+    delete body[field];
+    const res = await request(app).post("/api/study-groups").set("Authorization", aliceAuth).send(body);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(message);
+  });
+
+  it("explains the expected course code format", async () => {
+    const res = await request(app).post("/api/study-groups").set("Authorization", aliceAuth).send({ name: "Group", courseCode: "1105", description: "Review" });
+    expect(res.body.error).toBe("Use a course code such as INFO-5103");
   });
 
   it("returns an error if the atomic group/chat transaction fails", async () => {
@@ -107,6 +132,13 @@ describe("GET /api/study-groups", () => {
     expect(res.body).toEqual([]);
     expect(prisma.studyGroupMember.findMany).not.toHaveBeenCalled();
     expect(prisma.conversation.findMany).not.toHaveBeenCalled();
+  });
+
+  it("counts members with the same filter as the members list", async () => {
+    prisma.studyGroup.findMany.mockResolvedValue([{ ...group, _count: { members: 1 } }]);
+    const res = await request(app).get("/api/study-groups").set("Authorization", aliceAuth);
+    expect(prisma.studyGroup.findMany).toHaveBeenCalledWith(expect.objectContaining({ include: countedMembers }));
+    expect(res.body[0].memberCount).toBe(1);
   });
 
   it("shows saved group details but hides chat ids from nonmembers", async () => {
@@ -227,6 +259,7 @@ describe("group details and public member lists", () => {
     const memberView = await request(app).get("/api/study-groups/sg1").set("Authorization", aliceAuth);
     expect(memberView.body).toMatchObject({ isMember: true, conversationId: "chat" });
     expect(memberView.body).not.toHaveProperty("membershipVersion");
+    expect(prisma.studyGroup.findUnique).toHaveBeenCalledWith({ where: { id: "sg1" }, include: countedMembers });
   });
 
   it("returns only public member fields with pagination and excludes inactive/deleted accounts", async () => {

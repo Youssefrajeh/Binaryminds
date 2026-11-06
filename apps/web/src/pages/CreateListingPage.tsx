@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { Link, useNavigate, useParams } from "react-router";
 import { Nav } from "../components/Nav";
 import { useAuth } from "../context/AuthContext";
-import { apiErrorMessage } from "../lib/errors";
+import { apiErrorMessage, isNotFound } from "../lib/errors";
+import { NotFoundState } from "../components/NotFoundState";
 import { fileToDataUrl, photoError } from "../lib/image";
 import {
   createListing,
@@ -28,6 +29,7 @@ export function CreateListingPage() {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingListing, setLoadingListing] = useState(isEdit);
   const [loadError, setLoadError] = useState("");
+  const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
 
   const [title, setTitle] = useState("");
@@ -86,7 +88,8 @@ export function CreateListingPage() {
         setCondition(listing.condition);
         setPhotos(listing.images.map((image) => ({ preview: image.url, url: image.url })));
       } catch (err) {
-        setLoadError(apiErrorMessage(err, "Failed to load the listing."));
+        if (isNotFound(err)) setNotFound(true);
+        else setLoadError(apiErrorMessage(err, "Failed to load the listing."));
       } finally {
         setLoadingListing(false);
       }
@@ -214,20 +217,22 @@ export function CreateListingPage() {
     }
   }
 
-  const backTo = isEdit ? `/marketplace/${id}` : "/profile";
+  const backTo = isEdit ? `/marketplace/${id}` : "/marketplace";
 
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
-        <Link to={backTo} className="link text-sm">
-          {isEdit ? "← Back to listing" : "← Back to profile"}
-        </Link>
+      <main id="main" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+        {!notFound && (
+          <Link to={backTo} className="link text-sm">
+            {isEdit ? "← Back to listing" : "← Back to Marketplace"}
+          </Link>
+        )}
 
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">
+        {notFound ? <NotFoundState title="Listing not found" message="This listing doesn't exist, so there's nothing to edit." backTo="/marketplace" backLabel="Back to Marketplace" /> : <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">
           {isEdit ? "Edit listing" : "Sell an item"}
-        </h1>
+        </h1>}
 
         <p className="mt-1.5 text-sm text-ink-soft">
           {isEdit
@@ -247,7 +252,7 @@ export function CreateListingPage() {
           </div>
         )}
 
-        {!loadingListing && !loadError && (
+        {!loadingListing && !loadError && !notFound && (
           <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (

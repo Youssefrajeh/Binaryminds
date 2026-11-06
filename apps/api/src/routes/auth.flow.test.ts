@@ -55,9 +55,19 @@ describe("POST /api/auth/register", () => {
   const body = { firstName: "Jane", lastName: "Doe", email, password, acceptTerms: true };
 
   it("rejects non-Fanshawe emails", async () => {
-    const res = await request(app).post("/api/auth/register").send({ ...body, email: "x@gmail.com" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toContain("Fanshawe");
+    for (const other of ["x@gmail.com", "x@fanshaweonline.ca.evil.com", "x@notfanshaweonline.ca"]) {
+      const res = await request(app).post("/api/auth/register").send({ ...body, email: other });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("Use your @fanshaweonline.ca email");
+    }
+    expect(prisma.pendingRegistration.upsert).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("stores the email trimmed and lowercased", async () => {
+    await request(app).post("/api/auth/register").send({ ...body, email: "  A_Student@FanshaweOnline.CA " });
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email } });
+    expect(prisma.pendingRegistration.upsert.mock.calls[0][0]).toMatchObject({ where: { email }, create: expect.objectContaining({ email }) });
   });
 
   it("rejects weak passwords", async () => {
@@ -153,7 +163,7 @@ describe("POST /api/auth/resend-verification", () => {
 
     const mail = vi.mocked(sendEmail).mock.calls[0][0];
     expect(mail.to).toBe(email);
-    expect(mail.subject).toBe("CampusHub — Your new verification code");
+    expect(mail.subject).toBe("campus-hub — Your new verification code");
     expect(mail.html).toContain("Hello Jane,");
 
     const { where, data } = prisma.pendingRegistration.update.mock.calls[0][0];
@@ -294,7 +304,15 @@ describe("POST /api/auth/login", () => {
     prisma.user.findUnique.mockResolvedValue({ ...baseUser(), status: "SUSPENDED" });
     const res = await request(app).post("/api/auth/login").send({ email, password });
     expect(res.status).toBe(403);
-    expect(res.body.error).toContain("suspended");
+    expect(res.body).toEqual({ error: "Your account is suspended", code: "ACCOUNT_SUSPENDED", reason: null });
+    expect(res.body).not.toHaveProperty("token");
+  });
+
+  it("includes the administrator's reason when a suspended student logs in", async () => {
+    prisma.user.findUnique.mockResolvedValue({ ...baseUser(), status: "SUSPENDED", suspendedReason: "Repeated spam listings" });
+    const res = await request(app).post("/api/auth/login").send({ email, password });
+    expect(res.status).toBe(403);
+    expect(res.body.reason).toBe("Repeated spam listings");
   });
 
   it("returns a token and a user without secrets", async () => {
@@ -310,6 +328,20 @@ describe("POST /api/auth/login", () => {
 describe("POST /api/auth/logout", () => {
   it("succeeds statelessly", async () => {
     expect((await request(app).post("/api/auth/logout")).status).toBe(200);
+  });
+});
+
+describe("Fanshawe-only email on every sign-in route", () => {
+  it.each([["login", { password }], ["forgot-password", {}]])("rejects a Gmail address on /%s with a clear 400", async (route, extra) => {
+    const res = await request(app).post(`/api/auth/${route}`).send({ email: "sam@gmail.com", ...extra });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Use your @fanshaweonline.ca email");
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each([["login", { password }], ["forgot-password", {}]])("looks up the lowercased email on /%s", async (route, extra) => {
+    await request(app).post(`/api/auth/${route}`).send({ email: " A_Student@FANSHAWEONLINE.ca", ...extra });
+    expect(prisma.user.findUnique.mock.calls[0][0].where).toEqual({ email });
   });
 });
 

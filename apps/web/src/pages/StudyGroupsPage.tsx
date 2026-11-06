@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import type { CreateStudyGroupInput, StudyGroupDto } from "@campushub/shared";
+import { COURSE_CODE_HINT, COURSE_CODE_PATTERN, type CreateStudyGroupInput, type StudyGroupDto } from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import api from "../lib/api";
 import { apiErrorMessage } from "../lib/errors";
@@ -61,6 +61,10 @@ export function StudyGroupsPage() {
       setFormError("Group name, course code and description are required.");
       return;
     }
+    if (!COURSE_CODE_PATTERN.test(input.courseCode)) {
+      setFormError(`${COURSE_CODE_HINT}.`);
+      return;
+    }
     setCreating(true);
     try {
       const res = await api.post<StudyGroupDto>("/study-groups", input);
@@ -114,7 +118,7 @@ export function StudyGroupsPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-ink">Study groups</h1>
@@ -146,8 +150,9 @@ export function StudyGroupsPage() {
                 <input
                   id="group-course"
                   required
-                  minLength={2}
                   maxLength={30}
+                  pattern={COURSE_CODE_PATTERN.source}
+                  title={COURSE_CODE_HINT}
                   placeholder="e.g. INFO-5103"
                   value={courseCode}
                   onChange={(e) => setCourseCode(e.target.value)}
@@ -205,7 +210,7 @@ export function StudyGroupsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wide text-brand">{group.courseCode}</p>
                     <h2 className="mt-0.5 break-words text-base font-semibold text-ink"><Link to={`/study-groups/${group.id}`} className="hover:text-brand hover:underline">{group.name}</Link></h2>
-                    {group.description && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink-soft">{group.description}</p>}
+                    {group.description ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-ink-soft">{group.description}</p> : <p className="mt-1 text-sm italic text-muted">No description added.</p>}
                     <p className="mt-1 text-xs text-muted">
                       {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
                     </p>

@@ -5,7 +5,8 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { FieldError } from "../components/FieldError";
 import { errorProps, type Errors } from "../lib/fieldErrors";
 import { useAuth } from "../context/AuthContext";
-import { apiErrorMessage } from "../lib/errors";
+import { apiErrorMessage, isNotFound } from "../lib/errors";
+import { NotFoundState } from "../components/NotFoundState";
 import { fileToDataUrl, photoError as validatePhoto } from "../lib/image";
 import {
   cancelEvent,
@@ -91,6 +92,7 @@ export function EventFormPage() {
   const [event, setEvent] = useState<CampusEvent | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState("");
+  const [notFound, setNotFound] = useState(false);
   const [errors, setErrors] = useState<Errors<Field>>({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -113,7 +115,9 @@ export function EventFormPage() {
         setEvent(loaded);
         setForm(toForm(loaded));
       } catch (err) {
-        if (!stale) setLoadError(apiErrorMessage(err, "Failed to load the event."));
+        if (stale) return;
+        if (isNotFound(err)) setNotFound(true);
+        else setLoadError(apiErrorMessage(err, "Failed to load the event."));
       } finally {
         if (!stale) setLoading(false);
       }
@@ -198,7 +202,7 @@ export function EventFormPage() {
   }
 
   const organizerName = isEdit
-    ? event?.organizer?.profile?.displayName || "CampusHub organizer"
+    ? event?.organizer?.profile?.displayName || "campus-hub organizer"
     : user?.profile?.displayName || user?.email || "";
 
   // Hide the form from people the API would reject anyway
@@ -215,14 +219,16 @@ export function EventFormPage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
-        <Link to="/events" className="link text-sm">
-          ← Back to events
-        </Link>
+      <main id="main" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+        {!notFound && (
+          <Link to="/events" className="link text-sm">
+            ← Back to events
+          </Link>
+        )}
 
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">
+        {notFound ? <NotFoundState title="Event not found" message="This event doesn't exist, so there's nothing to edit." backTo="/events" backLabel="Back to events" /> : <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">
           {isEdit ? "Edit event" : "Create an event"}
-        </h1>
+        </h1>}
 
         {loading && (
           <p role="status" className="mt-8 text-sm text-ink-soft">
@@ -230,13 +236,13 @@ export function EventFormPage() {
           </p>
         )}
 
-        {(loadError || blocked) && !loading && (
+        {(loadError || blocked) && !loading && !notFound && (
           <div role="alert" className="alert-error mt-8">
             {loadError || blocked}
           </div>
         )}
 
-        {!loading && !loadError && !blocked && (
+        {!loading && !loadError && !blocked && !notFound && (
           <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
             <form onSubmit={handleSubmit} noValidate className="space-y-6">
               {submitError && (

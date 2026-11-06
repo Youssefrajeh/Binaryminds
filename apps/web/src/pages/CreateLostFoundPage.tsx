@@ -120,7 +120,7 @@ export function CreateLostFoundPage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
         <Link to="/lost-found" className="link text-sm">
           ← Back to Lost &amp; Found
         </Link>

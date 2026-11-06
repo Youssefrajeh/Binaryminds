@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { REPORT_REASONS, REPORT_TARGET_LABELS, safeAttachmentUrl, type AdminReportDto, type ReportAction, type ReportTarget } from "@campushub/shared";
+import { REPORT_REASONS, REPORT_TARGET_LABELS, safeAttachmentUrl, type AdminReportDto, type ReportAction, type ReportState, type ReportTarget } from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import { StatusBadge } from "../components/StatusBadge";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SharedFileLink } from "../components/SharedFileLink";
 import { apiErrorMessage } from "../lib/errors";
 import api from "../lib/api";
 
 const reasons = new Map<string, string>(REPORT_REASONS.map((reason) => [reason.value, reason.label]));
 function typeName(type: string) { return REPORT_TARGET_LABELS[type as ReportTarget] || type; }
+const states: Record<ReportState, { label: string; tone: "brand" | "success" | "neutral" | "danger" }> = {
+  OPEN: { label: "Open", tone: "brand" },
+  REMOVED: { label: "Content removed", tone: "danger" },
+  RESOLVED: { label: "Resolved", tone: "success" },
+  DISMISSED: { label: "Dismissed", tone: "neutral" },
+};
+const actionDone: Record<string, string> = { REMOVE_CONTENT: "Content removed", DISMISS: "Dismissed", RESOLVE: "Resolved" };
 function actionName(action: ReportAction) { return action === "REMOVE_CONTENT" ? "Remove content" : action === "DISMISS" ? "Dismiss report" : "Resolve report"; }
 
 export function AdminReportsPage() {
@@ -56,13 +64,13 @@ export function AdminReportsPage() {
 
   return (
     <div className="min-h-screen bg-canvas"><Nav />
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">Administration</p><h1 className="mt-2 text-3xl font-bold text-ink">Reports</h1><p className="mt-2 text-ink-soft">Review reported content and record your decision.</p></div>
           <div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary" disabled={loading} onClick={() => setReload((value) => value + 1)}>Refresh reports</button><Link to="/admin/users" className="btn-secondary">Manage users</Link></div>
         </div>
         <section aria-label="Filter reports" className="mt-8 grid gap-4 rounded-2xl border border-line bg-surface p-5 sm:grid-cols-2">
-          <div><label htmlFor="report-status" className="field-label">Status</label><select id="report-status" value={status} className="field-input" onChange={(e) => { setStatus(e.target.value); setPage(1); setExpanded(null); }}><option value="OPEN">Open</option><option value="RESOLVED">Resolved</option><option value="DISMISSED">Dismissed</option><option value="ALL">All statuses</option></select></div>
+          <div><label htmlFor="report-status" className="field-label">Status</label><select id="report-status" value={status} className="field-input" onChange={(e) => { setStatus(e.target.value); setPage(1); setExpanded(null); }}><option value="OPEN">Open</option><option value="REMOVED">Content removed</option><option value="DISMISSED">Dismissed</option><option value="RESOLVED">Resolved, content kept</option><option value="ALL">All statuses</option></select></div>
           <div><label htmlFor="report-type" className="field-label">Content type</label><select id="report-type" value={type} className="field-input" onChange={(e) => { setType(e.target.value); setPage(1); setExpanded(null); }}><option value="">All types</option>{Object.entries(REPORT_TARGET_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
         </section>
         {success && <p role="status" className="alert-success mt-6">{success}</p>}
@@ -71,10 +79,13 @@ export function AdminReportsPage() {
         {!loading && !error && reports.length === 0 && <p className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center text-muted">No reports match these filters.</p>}
         {!loading && !error && <ul aria-label="Reports" className="mt-6 space-y-4">{reports.map((report) => (
           <li key={report.id} className="rounded-2xl border border-line bg-surface p-5 shadow-sm sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-brand">{typeName(report.targetType)}</p><h2 className="mt-1 break-words text-lg font-semibold text-ink">{report.snapshot?.title || "Reported content"}</h2></div><StatusBadge tone={report.status === "OPEN" ? "brand" : report.status === "RESOLVED" ? "success" : "neutral"}>{report.status === "OPEN" ? "Open" : report.status === "RESOLVED" ? "Resolved" : "Dismissed"}</StatusBadge></div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-brand">{typeName(report.targetType)}</p><h2 className="mt-1 break-words text-lg font-semibold text-ink">{report.snapshot?.title || "Reported content"}</h2></div><StatusBadge tone={states[report.status].tone}>{states[report.status].label}</StatusBadge></div>
+            {report.snapshot?.text && <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-sm text-ink-soft">{report.snapshot.text}</p>}
+            {report.snapshot?.fileName && <p className="mt-1 break-all text-xs text-muted">File: {report.snapshot.fileName}</p>}
             <dl className="mt-4 grid min-w-0 gap-3 text-sm sm:grid-cols-2"><div><dt className="font-medium text-ink">Reported by</dt><dd className="break-words text-ink-soft">{report.reporter.name}</dd>{report.reporter.email && <dd className="break-all text-xs text-muted">{report.reporter.email}</dd>}</div><div><dt className="font-medium text-ink">Reason</dt><dd className="text-ink-soft">{reasons.get(report.reason) || report.reason}</dd></div><div><dt className="font-medium text-ink">Date</dt><dd className="text-ink-soft"><time dateTime={report.createdAt}>{new Date(report.createdAt).toLocaleString()}</time></dd></div>{report.note && <div><dt className="font-medium text-ink">Student note</dt><dd className="whitespace-pre-wrap break-words text-ink-soft">{report.note}</dd></div>}</dl>
-            <div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" aria-expanded={expanded === report.id} onClick={() => setExpanded(expanded === report.id ? null : report.id)}>{expanded === report.id ? "Hide preview" : "View"}</button>{report.status === "OPEN" && <>{REPORT_TARGET_LABELS[report.targetType as ReportTarget] && <button type="button" className="btn-secondary border-danger/40 text-danger" onClick={() => choose(report, "REMOVE_CONTENT")}>Remove content</button>}<button type="button" className="btn-secondary" onClick={() => choose(report, "RESOLVE")}>Resolve report</button><button type="button" className="btn-secondary" onClick={() => choose(report, "DISMISS")}>Dismiss report</button></>}</div>
-            {expanded === report.id && <section aria-label="Reported content preview" className="mt-5 rounded-xl border border-line bg-canvas p-4 text-sm text-ink-soft"><p className="text-xs text-muted">Snapshot captured when the report was submitted.</p>{report.snapshot ? <><p className="mt-3 whitespace-pre-wrap break-words">{report.snapshot.text}</p>{report.snapshot.location && <p className="mt-2">Location: {report.snapshot.location}</p>}{report.snapshot.href && safeAttachmentUrl(report.snapshot.href) && <Link to={report.snapshot.href} className="link mt-3 inline-block">Open content</Link>}{report.snapshot.fileName && <p className="mt-2 break-all">File: {report.snapshot.fileName}</p>}{report.snapshot.fileUrl && safeAttachmentUrl(report.snapshot.fileUrl) && <a href={report.snapshot.fileUrl} target="_blank" rel="noopener noreferrer" className="link mt-2 inline-block">Open reported file</a>}</> : <p className="mt-3">This older report has no saved preview. Content ID: {report.targetId}</p>}{report.actions.map((action, index) => <p key={index} className="mt-3 break-words border-t border-line pt-3">{action.action.replaceAll("_", " ")}{action.note ? ` — ${action.note}` : ""}</p>)}</section>}
+            <div className="mt-5 flex flex-wrap gap-2"><button type="button" className="btn-secondary" aria-expanded={expanded === report.id} onClick={() => setExpanded(expanded === report.id ? null : report.id)}>{expanded === report.id ? "Hide details" : "View details"}</button>{report.status === "OPEN" && <>{REPORT_TARGET_LABELS[report.targetType as ReportTarget] && <button type="button" className="btn-secondary border-danger/40 text-danger" onClick={() => choose(report, "REMOVE_CONTENT")}>Remove content</button>}<button type="button" className="btn-secondary" onClick={() => choose(report, "RESOLVE")}>Resolve report</button><button type="button" className="btn-secondary" onClick={() => choose(report, "DISMISS")}>Dismiss report</button></>}</div>
+            {expanded === report.id && <section aria-label="Reported content preview" className="mt-5 rounded-xl border border-line bg-canvas p-4 text-sm text-ink-soft"><p className="text-xs text-muted">Snapshot captured when the report was submitted.</p>{report.snapshot ? <><p className="mt-3 whitespace-pre-wrap break-words">{report.snapshot.text}</p>{report.snapshot.location && <p className="mt-2">Location: {report.snapshot.location}</p>}{report.snapshot.href && safeAttachmentUrl(report.snapshot.href) && <Link to={report.snapshot.href} className="link mt-3 inline-block">Open content</Link>}{report.snapshot.fileName && <p className="mt-2 break-all">File: {report.snapshot.fileName}</p>}{report.snapshot.fileUrl && safeAttachmentUrl(report.snapshot.fileUrl) && <div className="mt-2"><SharedFileLink url={report.snapshot.fileUrl} name={report.snapshot.fileName ?? "reported-file"} label="Open reported file" /></div>}</> : <p className="mt-3">This older report has no saved preview. Content ID: {report.targetId}</p>}</section>}
+            {report.actions.map((action, index) => <p key={index} className="mt-4 break-words border-t border-line pt-3 text-sm text-ink-soft"><span className="font-medium text-ink">{actionDone[action.action] ?? action.action}</span> by {action.admin} on <time dateTime={action.createdAt}>{new Date(action.createdAt).toLocaleString()}</time>{action.note ? ` — ${action.note}` : ""}</p>)}
           </li>
         ))}</ul>}
         <div className="mt-8 flex items-center justify-between gap-3"><button type="button" className="btn-secondary" disabled={loading || page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span className="text-sm text-muted">Page {page}</span><button type="button" className="btn-secondary" disabled={loading || !hasMore} onClick={() => setPage((value) => value + 1)}>Next</button></div>

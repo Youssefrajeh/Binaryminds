@@ -2,6 +2,9 @@ import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../lib/jwt.js";
 import { prisma } from "../lib/prisma.js";
 
+/** The web app signs the student out and explains why when it sees this code */
+export const SUSPENDED_RESPONSE = { error: "Your account is suspended", code: "ACCOUNT_SUSPENDED" } as const;
+
 declare global {
   namespace Express {
     interface Request {
@@ -33,7 +36,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // Tokens outlive suspensions and deletions, so check the account on each request
     const active = await prisma.user.count({ where: { id: payload.userId, status: "ACTIVE" } });
     if (active === 0) {
-      res.status(401).json({ error: "Account is not active" });
+      const suspended = await prisma.user.count({ where: { id: payload.userId, status: "SUSPENDED" } });
+      res.status(401).json(suspended ? SUSPENDED_RESPONSE : { error: "Account is not active" });
       return;
     }
   } catch (err) {

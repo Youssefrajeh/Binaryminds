@@ -93,11 +93,11 @@ export function EditProfilePage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
-      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
         <Link to="/profile" className="link text-sm">← Back to profile</Link>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink">Edit profile</h1>
         <p className="mt-1.5 text-sm text-ink-soft">
-          This is how other Fanshawe students see you on CampusHub.
+          This is how other Fanshawe students see you on campus-hub.
         </p>
 
         <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">

@@ -142,6 +142,38 @@ describe("reporting and moderation persisted in MongoDB", () => {
     expect((await action(report.body.id, "REMOVE_CONTENT")).status).toBe(409);
     expect(await prisma.moderationAction.count()).toBe(1);
   });
+  it("keeps one report per student and item, even after an administrator dismissed it", async () => {
+    const first = await submit();
+    expect((await action(first.body.id, "DISMISS")).status).toBe(200);
+    const again = await submit();
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ id: first.body.id, alreadyReported: true });
+    expect(await prisma.report.count()).toBe(1);
+    const mine = await request(app).get("/api/reports/status").query({ targetType: "LISTING", targetId: "listing" }).set("Authorization", student);
+    expect(mine.body).toEqual({ reported: true });
+    const theirs = await request(app).get("/api/reports/status").query({ targetType: "LISTING", targetId: "listing" }).set("Authorization", auth("stranger"));
+    expect(theirs.body).toEqual({ reported: false });
+    // Each attachment of a message is its own item
+    await submit("FILE", "message", { attachmentIndex: 0 });
+    const otherFile = await request(app).get("/api/reports/status").query({ targetType: "FILE", targetId: "message", attachmentIndex: 1 }).set("Authorization", student);
+    expect(otherFile.body).toEqual({ reported: false });
+  });
+  it("filters removed, dismissed and resolved reports and names the acting administrator", async () => {
+    const removed = await submit("LISTING", "listing");
+    const dismissed = await submit("LOST_FOUND_POST", "post");
+    const resolved = await submit("MESSAGE", "message");
+    expect((await action(removed.body.id, "REMOVE_CONTENT")).status).toBe(200);
+    expect((await action(dismissed.body.id, "DISMISS", auth("admin2"))).status).toBe(200);
+    expect((await action(resolved.body.id, "RESOLVE")).status).toBe(200);
+    const list = async (status: string) => (await request(app).get("/api/admin/reports").query({ status }).set("Authorization", admin)).body as { id: string; status: string; actions: { action: string; admin: string; createdAt: string }[] }[];
+    const removedPage = await list("REMOVED");
+    expect(removedPage.map((report) => report.id)).toEqual([removed.body.id]);
+    expect(removedPage[0]).toMatchObject({ status: "REMOVED", actions: [{ action: "REMOVE_CONTENT", admin: "admin Test", createdAt: expect.any(String) }] });
+    expect((await list("DISMISSED")).map((report) => [report.id, report.actions[0].admin])).toEqual([[dismissed.body.id, "admin2 Test"]]);
+    expect((await list("RESOLVED")).map((report) => report.id)).toEqual([resolved.body.id]);
+    expect(await list("OPEN")).toEqual([]);
+    expect((await list("ALL")).map((report) => report.status).sort()).toEqual(["DISMISSED", "REMOVED", "RESOLVED"]);
+  });
   it("allows only one winner when two administrators review the same report", async () => {
     const report = await submit();
     const decisions = await Promise.all([action(report.body.id, "RESOLVE"), action(report.body.id, "DISMISS", auth("admin2"))]);
@@ -155,7 +187,7 @@ describe("reporting and moderation persisted in MongoDB", () => {
     expect(await prisma.moderationAction.count()).toBe(0);
   });
   it("loads legacy reports and reports from deleted accounts, with stable pagination", async () => {
-    await prisma.report.create({ data: { reporterId: "student", targetType: "LISTING", targetId: "listing", reason: "Old reason", status: "ACTIONED" } });
+    await prisma.report.create({ data: { reporterId: "stranger", targetType: "LISTING", targetId: "listing", reason: "Old reason", status: "ACTIONED" } });
     await submit();
     const resolved = await request(app).get("/api/admin/reports?status=RESOLVED").set("Authorization", admin);
     expect(resolved.body[0]).toMatchObject({ status: "RESOLVED", snapshot: null });

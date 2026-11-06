@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { Prisma } from "@prisma/client";
+import { Prisma, type ReportStatus } from "@prisma/client";
 import { z } from "zod";
-import { REPORT_REASONS, type AdminReportDto, type ReportSnapshot } from "@campushub/shared";
+import { REPORT_REASONS, type AdminReportDto, type ReportSnapshot, type ReportState } from "@campushub/shared";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { reportContent, removeReportedContent, ReportError } from "../lib/reportContent.js";
@@ -29,21 +29,44 @@ function failure(res: import("express").Response, err: unknown, context: string)
   res.status(500).json({ error: "Could not complete the report request. Please try again." });
 }
 
+const statusSchema = z.object({
+  targetType, targetId: z.string().trim().min(1).max(100),
+  attachmentIndex: z.coerce.number().int().min(0).max(49).optional(),
+});
+
+/** Lets the report form say "You already reported this" before the student fills it in. */
+reportsRouter.get("/status", async (req, res) => {
+  const parsed = statusSchema.safeParse(req.query);
+  if (!parsed.success) { res.status(400).json({ error: "Choose valid content" }); return; }
+  try {
+    const { targetType, targetId, attachmentIndex } = parsed.data;
+    const content = await reportContent(prisma, req.user!.userId, targetType, targetId, attachmentIndex);
+    const existing = await prisma.report.findFirst({ where: { reporterId: req.user!.userId, targetType, targetId, fileKey: content.fileKey }, select: { id: true } });
+    res.json({ reported: Boolean(existing) });
+  } catch (err) { failure(res, err, "Report status error:"); }
+});
+
 reportsRouter.post("/", async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message || "Choose a reason and valid content" }); return; }
   try {
     const { targetType, targetId, reason, note, attachmentIndex } = parsed.data;
     const content = await reportContent(prisma, req.user!.userId, targetType, targetId, attachmentIndex);
-    const existing = await prisma.report.findFirst({ where: { reporterId: req.user!.userId, targetType, targetId, fileKey: content.fileKey, status: "OPEN" }, select: { id: true, status: true } });
+    // One report per student per item, whatever an administrator later decided about it.
+    const existing = await prisma.report.findFirst({ where: { reporterId: req.user!.userId, targetType, targetId, fileKey: content.fileKey }, select: { id: true, status: true } });
     if (existing) { res.json({ ...existing, alreadyReported: true }); return; }
     const report = await prisma.report.create({ data: { reporterId: req.user!.userId, targetType, targetId, reason, note: note || null, snapshot: content.snapshot, fileKey: content.fileKey }, select: { id: true, status: true } });
     res.status(201).json(report);
   } catch (err) { failure(res, err, "Create report error:"); }
 });
 
+function reportState(status: ReportStatus, actions: { action: string }[]): ReportState {
+  if (status === "OPEN" || status === "DISMISSED") return status;
+  return actions.some((action) => action.action === "REMOVE_CONTENT") ? "REMOVED" : "RESOLVED";
+}
+
 const pageSchema = z.object({
-  status: z.enum(["OPEN", "RESOLVED", "DISMISSED", "ALL"]).default("OPEN"),
+  status: z.enum(["OPEN", "REMOVED", "RESOLVED", "DISMISSED", "ALL"]).default("OPEN"),
   type: targetType.optional(),
   page: z.coerce.number().int().min(1).max(10000).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
@@ -54,10 +77,16 @@ adminReportsRouter.get("/", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid report filters" }); return; }
   try {
     const { status, type, page, limit } = parsed.data;
+    const removal = { moderationActions: { some: { action: "REMOVE_CONTENT" } } } satisfies Prisma.ReportWhereInput;
+    const resolved = { status: { in: ["RESOLVED", "ACTIONED"] } } satisfies Prisma.ReportWhereInput;
+    const filter: Record<typeof status, Prisma.ReportWhereInput> = {
+      ALL: {}, OPEN: { status: "OPEN" }, DISMISSED: { status: "DISMISSED" },
+      REMOVED: { ...resolved, ...removal }, RESOLVED: { ...resolved, NOT: removal },
+    };
     const rows = await prisma.report.findMany({
-      where: { ...(status === "ALL" ? {} : { status: status === "RESOLVED" ? { in: ["RESOLVED", "ACTIONED"] } : status }), ...(type ? { targetType: type } : {}) },
+      where: { ...filter[status], ...(type ? { targetType: type } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (page - 1) * limit, take: limit + 1,
-      include: { moderationActions: { orderBy: { createdAt: "desc" }, take: 5, select: { action: true, note: true, createdAt: true } } },
+      include: { moderationActions: { orderBy: { createdAt: "desc" }, take: 5, select: { action: true, note: true, createdAt: true, admin: { select: { email: true, profile: { select: { displayName: true } } } } } } },
     });
     const pageRows = rows.slice(0, limit);
     const reporters = await prisma.user.findMany({ where: { id: { in: [...new Set(pageRows.map((row) => row.reporterId))] } }, select: { id: true, email: true, profile: { select: { displayName: true } } } });
@@ -65,7 +94,7 @@ adminReportsRouter.get("/", async (req, res) => {
     const result: AdminReportDto[] = pageRows.map((row) => {
       const reporter = people.get(row.reporterId);
       const snapshot = row.snapshot && typeof row.snapshot === "object" && !Array.isArray(row.snapshot) && typeof row.snapshot.title === "string" && typeof row.snapshot.text === "string" ? row.snapshot as ReportSnapshot : null;
-      return { id: row.id, targetType: row.targetType, targetId: row.targetId, reason: row.reason, note: row.note, status: row.status === "ACTIONED" ? "RESOLVED" : row.status, createdAt: row.createdAt.toISOString(), reporter: { name: reporter?.profile?.displayName || reporter?.email || "Deleted account", email: reporter?.email || null }, snapshot, actions: row.moderationActions.map((action) => ({ ...action, createdAt: action.createdAt.toISOString() })) };
+      return { id: row.id, targetType: row.targetType, targetId: row.targetId, reason: row.reason, note: row.note, status: reportState(row.status, row.moderationActions), createdAt: row.createdAt.toISOString(), reporter: { name: reporter?.profile?.displayName || reporter?.email || "Deleted account", email: reporter?.email || null }, snapshot, actions: row.moderationActions.map(({ admin, ...action }) => ({ ...action, createdAt: action.createdAt.toISOString(), admin: admin?.profile?.displayName || admin?.email || "Deleted administrator" })) };
     });
     res.set("X-Has-More", String(rows.length > limit)); res.json(result);
   } catch (err) { failure(res, err, "Load reports error:"); }

@@ -3,6 +3,7 @@ import { useState, useMemo, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { PasswordInput } from "../components/PasswordInput";
+import { FanshaweEmailInput } from "../components/FanshaweEmailInput";
 import { PasswordChecklist } from "../components/PasswordChecklist";
 import api from "../lib/api";
 
@@ -105,8 +106,9 @@ export function RegisterPage() {
       return;
     }
 
-    if (!email.toLowerCase().endsWith("@fanshaweonline.ca")) {
-      setError("Please use your Fanshawe student email (@fanshaweonline.ca)");
+    // Empty while the Fanshawe ID is missing or invalid; the field explains why
+    if (!email) {
+      setError("Enter your Fanshawe ID, e.g. y_rajeh");
       return;
     }
 
@@ -145,7 +147,7 @@ export function RegisterPage() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Only verified Fanshawe College students can join CampusHub."
+      subtitle="Only verified Fanshawe College students can join campus-hub."
       footer={
         <>
           Already have an account?{" "}
@@ -197,21 +199,7 @@ export function RegisterPage() {
           </div>
         </div>
 
-        <div>
-          <label htmlFor="register-email" className="field-label">
-            Fanshawe email
-          </label>
-          <input
-            id="register-email"
-            type="email"
-            required
-            autoComplete="off"
-            placeholder="you@fanshaweonline.ca"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="field-input"
-          />
-        </div>
+        <FanshaweEmailInput id="register-email" required value={email} onChange={setEmail} />
 
         <div>
           <label htmlFor="register-password" className="field-label">
@@ -219,6 +207,7 @@ export function RegisterPage() {
           </label>
           <PasswordInput
             id="register-password"
+            toggleLabel="password"
             required
             autoComplete="new-password"
             placeholder="Create a strong password"
@@ -235,6 +224,7 @@ export function RegisterPage() {
           </label>
           <PasswordInput
             id="register-confirm"
+            toggleLabel="confirm password"
             required
             autoComplete="new-password"
             placeholder="Re-enter your password"

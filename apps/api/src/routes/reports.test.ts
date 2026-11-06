@@ -45,12 +45,21 @@ describe("student reporting", () => {
     expect((await request(app).post("/api/reports").set("Authorization", auth).send({ ...body, ...patch })).status).toBe(400);
     expect(prisma.report.create).not.toHaveBeenCalled();
   });
-  it("reuses an existing open report from the same student", async () => {
-    prisma.report.findFirst.mockResolvedValue({ id: "existing", status: "OPEN" });
+  it("reuses an existing report from the same student, whatever its status", async () => {
+    prisma.report.findFirst.mockResolvedValue({ id: "existing", status: "DISMISSED" });
     const response = await request(app).post("/api/reports").set("Authorization", auth).send(body);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ id: "existing", alreadyReported: true });
     expect(prisma.report.create).not.toHaveBeenCalled();
+    expect(prisma.report.findFirst.mock.calls[0][0].where).not.toHaveProperty("status");
+  });
+  it("tells the form whether this student already reported the content", async () => {
+    expect((await request(app).get("/api/reports/status").query({ targetType: "LISTING", targetId: "listing" }).set("Authorization", auth)).body).toEqual({ reported: false });
+    prisma.report.findFirst.mockResolvedValue({ id: "existing" });
+    expect((await request(app).get("/api/reports/status").query({ targetType: "LISTING", targetId: "listing" }).set("Authorization", auth)).body).toEqual({ reported: true });
+    expect(prisma.report.findFirst.mock.calls[1][0].where).toMatchObject({ reporterId: "student", targetType: "LISTING", targetId: "listing" });
+    expect((await request(app).get("/api/reports/status").query({ targetType: "USER", targetId: "x" }).set("Authorization", auth)).status).toBe(400);
+    expect((await request(app).get("/api/reports/status").query({ targetType: "LISTING", targetId: "listing" })).status).toBe(401);
   });
   it("rejects self-reporting", async () => {
     prisma.listing.findUnique.mockResolvedValue({ sellerId: "student", title: "Own listing", description: "Own", status: "ACTIVE" });

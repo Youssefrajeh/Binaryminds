@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRoles } from "../middleware/roles.middleware.js";
-import { emitToUsers } from "../socket/io.js";
+import { disconnectUser, emitToUsers } from "../socket/io.js";
 import { adminReportsRouter } from "./reports.js";
 
 export const adminRouter = Router();
@@ -12,7 +12,7 @@ adminRouter.use(requireAuth, requireRoles("ADMINISTRATOR"));
 adminRouter.use("/reports", adminReportsRouter);
 
 const userSelect = {
-  id: true, email: true, role: true, status: true, emailVerifiedAt: true, createdAt: true,
+  id: true, email: true, role: true, status: true, emailVerifiedAt: true, createdAt: true, suspendedAt: true, suspendedReason: true,
   profile: { select: { displayName: true, avatarUrl: true } },
 } satisfies Prisma.UserSelect;
 
@@ -85,5 +85,49 @@ adminRouter.patch("/users/:id/role", async (req, res) => {
   } catch (err) {
     console.error("Admin role update error:", err);
     res.status(500).json({ error: "Could not update the role" });
+  }
+});
+
+adminRouter.patch("/users/:id/status", async (req, res) => {
+  const parsed = z.object({
+    status: z.enum(["ACTIVE", "SUSPENDED"]),
+    reason: z.string().trim().max(500, "Keep the reason under 500 characters").optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues.find((issue) => issue.path[0] === "reason")?.message ?? "Choose to suspend or reactivate the account" });
+    return;
+  }
+  const { status } = parsed.data;
+  try {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: userSelect });
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (target.role === "ADMINISTRATOR" || target.id === req.user!.userId) {
+      res.status(403).json({ error: "Administrator accounts cannot be changed here" });
+      return;
+    }
+    // Pending accounts have not verified their email, so reactivating must not activate them.
+    const from = status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
+    if (target.status !== from) {
+      res.status(409).json({ error: status === "SUSPENDED" ? "Only active accounts can be suspended" : "Only suspended accounts can be reactivated" });
+      return;
+    }
+    const result = await prisma.user.updateMany({
+      where: { id: target.id, role: target.role, status: from },
+      data: status === "SUSPENDED"
+        ? { status, suspendedAt: new Date(), suspendedReason: parsed.data.reason || null, suspendedById: req.user!.userId }
+        : { status, suspendedAt: null, suspendedReason: null, suspendedById: null },
+    });
+    if (!result.count) {
+      res.status(409).json({ error: "This account changed. Refresh the users list and try again." });
+      return;
+    }
+    if (status === "SUSPENDED") disconnectUser(target.id);
+    res.json(await prisma.user.findUniqueOrThrow({ where: { id: target.id }, select: userSelect }));
+  } catch (err) {
+    console.error("Admin status update error:", err);
+    res.status(500).json({ error: "Could not update the account" });
   }
 });

@@ -16,6 +16,7 @@ export function createPrismaMock() {
     lostFoundPost: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     report: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
     moderationAction: { create: vi.fn() },
+    sharedFile: { create: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), groupBy: vi.fn() },
     $transaction: vi.fn(),
     participant: {
       upsert: vi.fn(),

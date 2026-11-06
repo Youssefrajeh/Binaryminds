@@ -32,5 +32,7 @@ export interface AdminUserDto {
   emailVerifiedAt: string | null;
   createdAt: string;
   profile: { displayName: string; avatarUrl: string | null } | null;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
 }
 export type AssignableRole = "STUDENT" | "ORGANIZER" | "ADMINISTRATOR";

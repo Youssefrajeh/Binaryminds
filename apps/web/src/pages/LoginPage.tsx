@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
 import { useAuth } from "../context/AuthContext";
 import { PasswordInput } from "../components/PasswordInput";
+import { FanshaweEmailInput } from "../components/FanshaweEmailInput";
 import { LoginMascot, type MascotMood } from "../components/LoginMascot";
 import api from "../lib/api";
 
@@ -10,6 +11,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get("expired") === "true";
+  const suspendedSession = searchParams.get("suspended") === "true";
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,6 +28,10 @@ export function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!email) {
+      setError("Enter your Fanshawe ID, e.g. y_rajeh");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -37,7 +43,10 @@ export function LoginPage() {
         navigate("/", { replace: true });
       }, 550);
     } catch (err: any) {
-      setError(err.response?.data?.error || "Something went wrong");
+      const data = err.response?.data;
+      setError(data?.code === "ACCOUNT_SUSPENDED"
+        ? `Your account is suspended.${data.reason ? ` Reason: ${data.reason}${/[.!?]$/.test(data.reason) ? "" : "."}` : ""} Contact a campus-hub administrator if you think this is a mistake.`
+        : data?.error || "Something went wrong");
       setReaction("error");
       setTimeout(() => setReaction(null), 700);
       setLoading(false);
@@ -47,8 +56,8 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Log in to your CampusHub account."
-      hero={<LoginMascot mood={mood} lookAt={email.length / 28} />}
+      subtitle="Log in to your campus-hub account."
+      hero={<LoginMascot mood={mood} lookAt={email.replace(/@.*/, "").length / 28} />}
       footer={
         <>
           Don't have an account?{" "}
@@ -59,34 +68,32 @@ export function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        {sessionExpired && !error && (
+        {suspendedSession && !error && (
+          <div role="alert" className="alert-error">
+            Your account is suspended, so you've been signed out. Contact a campus-hub administrator if you think this is a mistake.
+          </div>
+        )}
+
+        {sessionExpired && !suspendedSession && !error && (
           <div className="alert-info">
             Your session expired after 10 minutes of inactivity. Please log in again.
           </div>
         )}
 
         {error && (
-          <div className="alert-error">
+          <div role="alert" className="alert-error">
             {error}
           </div>
         )}
 
-        <div>
-          <label htmlFor="login-email" className="field-label">
-            Email
-          </label>
-          <input
-            id="login-email"
-            type="email"
-            required
-            placeholder="you@fanshaweonline.ca"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onFocus={() => setFocused("email")}
-            onBlur={() => setFocused(null)}
-            className="field-input"
-          />
-        </div>
+        <FanshaweEmailInput
+          id="login-email"
+          required
+          value={email}
+          onChange={setEmail}
+          onFocus={() => setFocused("email")}
+          onBlur={() => setFocused(null)}
+        />
 
         <div>
           <div className="mb-1.5 flex items-center justify-between">
@@ -102,6 +109,7 @@ export function LoginPage() {
           </div>
           <PasswordInput
             id="login-password"
+            autoComplete="current-password"
             required
             placeholder="Enter your password"
             value={password}

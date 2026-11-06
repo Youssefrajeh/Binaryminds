@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router";
+import { Navigate, useParams } from "react-router";
 import type { PublicProfileDto } from "@campushub/shared";
 import { Nav } from "../components/Nav";
 import { Avatar } from "../components/Avatar";
 import { MessageButton } from "../components/MessageButton";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
+import { NotFoundState } from "../components/NotFoundState";
 
 export function PublicProfilePage() {
   const { userId } = useParams();
@@ -37,16 +38,11 @@ export function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-canvas">
       <Nav />
-      <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-2xl px-4 py-10 sm:py-14">
         {loading ? (
           <p className="py-8 text-center text-sm text-muted">Loading profile…</p>
         ) : error || !profile ? (
-          <div className="text-center">
-            <p className="text-sm text-muted">{error || "This student could not be found."}</p>
-            <Link to="/messages" className="link mt-2 inline-block text-sm">
-              Back to messages
-            </Link>
-          </div>
+          <NotFoundState title="Student not found" message={error || "This student could not be found."} backTo="/members" backLabel="Find students" />
         ) : (
           <div className="space-y-6">
             <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">

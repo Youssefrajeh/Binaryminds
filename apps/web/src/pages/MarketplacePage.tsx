@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useContentRemoval } from "../lib/useContentRemoval";
 import { Link } from "react-router";
 import { Nav } from "../components/Nav";
+import { ListingGridSkeleton } from "../components/Skeletons";
 import api from "../lib/api";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
@@ -138,7 +139,7 @@ export function MarketplacePage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
         <div className="mb-8 flex flex-col gap-6">
           <div>
             <h1 className="text-4xl font-bold">Marketplace</h1>
@@ -222,9 +223,9 @@ export function MarketplacePage() {
 
         {error && <div className="alert-error mt-8">{error}</div>}
 
-        {loading && (
-          <div className="mt-8 text-sm text-ink-soft">Loading listings...</div>
-        )}
+        {loading && (listings.length === 0
+          ? <ListingGridSkeleton />
+          : <p role="status" className="mt-8 text-sm text-ink-soft">Updating listings...</p>)}
 
         {!loading && !error && listings.length === 0 && (
           <div className="mt-8 rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
@@ -255,7 +256,7 @@ export function MarketplacePage() {
                   <img
                     src={listing.images[0].url}
                     alt={listing.title}
-                    className={`aspect-[4/3] w-full object-cover ${listing.status === "SOLD" ? "opacity-60" : ""}`}
+                    className={`aspect-[4/3] w-full object-contain p-8 ${listing.status === "SOLD" ? "opacity-60" : ""}`}
                   />
                 )}
 

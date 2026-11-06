@@ -14,6 +14,7 @@ import { lostFoundRouter } from "./routes/lostFound.js";
 import { eventsRouter } from "./routes/events.js";
 import { adminRouter } from "./routes/admin.js";
 import { reportsRouter } from "./routes/reports.js";
+import { filesRouter } from "./routes/files.js";
 
 export function createApp() {
   const app = express();
@@ -37,6 +38,7 @@ export function createApp() {
   apiRouter.use("/events", eventsRouter);
   apiRouter.use("/admin", adminRouter);
   apiRouter.use("/reports", reportsRouter);
+  apiRouter.use("/files", filesRouter);
 
   app.use("/api", apiRouter);
   // Only the health check lives at the root: mounting the whole API there would

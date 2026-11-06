@@ -88,6 +88,10 @@ model User {
   termsAcceptedAt DateTime?
   otpHash         String?
   otpExpiresAt    DateTime?
+  // Set while status is SUSPENDED; the reason is shown to the student when they try to sign in.
+  suspendedAt     DateTime?
+  suspendedReason String?
+  suspendedById   String?
 
   profile            Profile?
   listings           Listing[]
@@ -100,6 +104,7 @@ model User {
   studyGroups        StudyGroupMember[]
   reportsFiled       Report[]           @relation("ReportReporter")
   moderationActions  ModerationAction[] @relation("ModerationAdmin")
+  sharedFiles        SharedFile[]
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([role, createdAt(sort: Desc), id(sort: Desc)])
@@ -192,6 +197,7 @@ model Conversation {
 
   participants Participant[]
   messages     Message[]
+  sharedFiles  SharedFile[]
 
   @@index([updatedAt(sort: Desc)])
 }
@@ -237,6 +243,28 @@ type Attachment {
   name     String
   mimeType String
   size     Int
+}
+
+// A file shared in a chat. It sits apart from Message because messages are sent over
+// sockets and loaded in pages, which should carry only the file's link and details.
+model SharedFile {
+  id             String       @id @default(cuid()) @map("_id")
+  uploaderId     String
+  uploader       User         @relation(fields: [uploaderId], references: [id])
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId      String
+  // Set for study group files, which makes them part of the course library.
+  courseCode     String?
+  name           String
+  mimeType       String
+  size           Int
+  data           Bytes
+  createdAt      DateTime     @default(now())
+  removedAt      DateTime?
+
+  @@index([courseCode, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([conversationId])
 }
 
 model StudyGroup {

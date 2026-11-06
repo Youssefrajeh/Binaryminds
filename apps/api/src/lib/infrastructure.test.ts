@@ -170,12 +170,23 @@ describe("requireAuth middleware", () => {
     expect(res.body).toMatchObject({ userId: "u1", role: "STUDENT" });
   });
 
-  it("rejects a valid token whose account is suspended or deleted", async () => {
+  it("rejects a valid token whose account is deleted or no longer active", async () => {
     const prisma = prismaClient as unknown as PrismaMock;
-    prisma.user.count.mockResolvedValueOnce(0);
+    prisma.user.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
     const token = signToken({ userId: "u1", role: "STUDENT" });
     const res = await request(app).get("/p").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Account is not active" });
+  });
+
+  it("tells a suspended student why their session stopped working", async () => {
+    const prisma = prismaClient as unknown as PrismaMock;
+    prisma.user.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    const token = signToken({ userId: "u1", role: "STUDENT" });
+    const res = await request(app).get("/p").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Your account is suspended", code: "ACCOUNT_SUSPENDED" });
+    expect(prisma.user.count).toHaveBeenLastCalledWith({ where: { id: "u1", status: "SUSPENDED" } });
   });
 });
 

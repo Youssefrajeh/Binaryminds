@@ -7,6 +7,7 @@ import type {
   MessageDto,
 } from "@campushub/shared";
 import { Nav } from "../components/Nav";
+import { MessageThreadSkeleton } from "../components/Skeletons";
 import { ConversationList } from "../components/ConversationList";
 import { ChatWindow } from "../components/ChatWindow";
 import { useAuth } from "../context/AuthContext";
@@ -220,7 +221,7 @@ export function MessagesPage() {
   return (
     <div className="flex h-dvh flex-col bg-canvas">
       <Nav />
-      <main className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 sm:px-4 sm:py-4">
+      <main id="main" className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 sm:px-4 sm:py-4">
         <div className="flex min-h-0 w-full overflow-hidden border-line bg-surface sm:rounded-2xl sm:border sm:shadow-sm">
           <aside
             className={`w-full shrink-0 border-line sm:block sm:w-80 sm:border-r ${conversationId ? "hidden" : "block"}`}
@@ -278,7 +279,7 @@ export function MessagesPage() {
                 onConversationChanged={refreshAll}
               />
             ) : (
-              <p className="p-8 text-center text-sm text-muted">Loading…</p>
+              <div className="px-4"><MessageThreadSkeleton label="Loading…" /></div>
             )}
           </section>
         </div>

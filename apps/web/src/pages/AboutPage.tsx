@@ -38,7 +38,7 @@ export function AboutPage() {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <Nav />
-      <main>
+      <main id="main">
         {/* Intro */}
         <section className="mx-auto max-w-3xl px-6 pt-16 pb-14 text-center sm:pt-20">
           <LogoMark className="mx-auto h-16 w-22" />

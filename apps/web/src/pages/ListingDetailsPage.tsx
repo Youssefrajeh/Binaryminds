@@ -8,7 +8,8 @@ import { MessageButton } from "../components/MessageButton";
 import { ReportButton } from "../components/ReportButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { apiErrorMessage } from "../lib/errors";
+import { apiErrorMessage, isNotFound } from "../lib/errors";
+import { NotFoundState } from "../components/NotFoundState";
 import {
   deleteListing,
   getListing,
@@ -36,11 +37,13 @@ export function ListingDetailsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     async function loadListing() {
       setLoading(true);
       setError("");
+      setNotFound(false);
       setListing(null);
 
       if (!id) {
@@ -54,7 +57,8 @@ export function ListingDetailsPage() {
       } catch (err) {
         console.error("Failed to load listing:", err);
 
-        setError(apiErrorMessage(err, "Failed to load listing."));
+        if (isNotFound(err)) setNotFound(true);
+        else setError(apiErrorMessage(err, "Failed to load listing."));
       } finally {
         setLoading(false);
       }
@@ -98,10 +102,12 @@ export function ListingDetailsPage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:py-14">
-        <Link to="/marketplace" className="link text-sm">
-          ← Back to Marketplace
-        </Link>
+      <main id="main" className="mx-auto w-full max-w-5xl px-4 py-10 sm:py-14">
+        {!notFound && (
+          <Link to="/marketplace" className="link text-sm">
+            ← Back to Marketplace
+          </Link>
+        )}
 
         {flash && (
           <div role="status" className="alert-success mt-6">
@@ -113,6 +119,7 @@ export function ListingDetailsPage() {
           <p className="mt-8 text-sm text-ink-soft">Loading listing...</p>
         )}
 
+        {notFound && <NotFoundState title="Listing not found" message="This listing doesn't exist or is no longer available." backTo="/marketplace" backLabel="Back to Marketplace" />}
         {error && <div className="alert-error mt-8">{error}</div>}
 
         {!loading && !error && listing && (
@@ -169,12 +176,12 @@ export function ListingDetailsPage() {
                   className="mt-3 flex w-fit items-center gap-3 hover:opacity-90"
                 >
                   <Avatar
-                    name={listing.seller.profile?.displayName || "CampusHub seller"}
+                    name={listing.seller.profile?.displayName || "campus-hub seller"}
                     src={listing.seller.profile?.avatarUrl}
                   />
 
                   <span className="text-sm text-ink hover:underline">
-                    {listing.seller.profile?.displayName || "CampusHub seller"}
+                    {listing.seller.profile?.displayName || "campus-hub seller"}
                   </span>
                 </Link>
               </div>

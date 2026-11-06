@@ -20,8 +20,10 @@ describe("administrator reports page", () => {
     expect(screen.getByText("sam@fanshaweonline.ca")).toBeTruthy();
     expect(screen.getByText("Scam or fraud")).toBeTruthy();
     expect(screen.getByText("Please investigate")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    // A short preview sits on the card; the full snapshot opens on request
     expect(screen.getByText("Original listing description")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Open content" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByRole("link", { name: "Open content" }).getAttribute("href")).toBe("/marketplace/listing");
   });
   it("filters status and content type", async () => {
@@ -49,6 +51,20 @@ describe("administrator reports page", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Dismiss report" }));
     await screen.findByText("Already reviewed");
     expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+  it("filters to reports whose content was removed", async () => {
+    get.mockResolvedValue({ data: [], headers: {} }); show();
+    await screen.findByText("No reports match these filters.");
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "REMOVED" } });
+    await waitFor(() => expect(get).toHaveBeenLastCalledWith("/admin/reports", { params: { status: "REMOVED" } }));
+  });
+  it("shows which administrator acted and when", async () => {
+    get.mockResolvedValue({ data: [{ ...report, status: "REMOVED", actions: [{ action: "REMOVE_CONTENT", note: "Scam listing", createdAt: "2026-10-31T09:30:00Z", admin: "Alex Admin" }] }], headers: {} }); show();
+    await screen.findByText("Textbook");
+    expect(screen.getAllByText("Content removed").length).toBeGreaterThan(0);
+    const audit = screen.getByText((_, element) => element?.tagName === "P" && /by Alex Admin on/.test(element.textContent ?? ""));
+    expect(audit.textContent).toContain("Scam listing");
+    expect(audit.querySelector("time")?.getAttribute("dateTime")).toBe("2026-10-31T09:30:00Z");
   });
   it("does not show moderation controls on closed reports", async () => {
     get.mockResolvedValue({ data: [{ ...report, status: "RESOLVED" }], headers: {} }); show();

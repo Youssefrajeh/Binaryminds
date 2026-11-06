@@ -1,9 +1,12 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router";
 import { AuthProvider } from "./context/AuthProvider";
 import { SocketProvider } from "./context/SocketProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { PageTitle } from "./components/PageTitle";
+import { SkipLink } from "./components/SkipLink";
+import { NotFoundPage } from "./pages/NotFoundPage";
 import { LandingPage } from "./pages/LandingPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { VerifyPage } from "./pages/VerifyPage";
@@ -30,20 +33,25 @@ const MessagesPage = lazy(() => import("./pages/MessagesPage").then((module) => 
 const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
 const AdminReportsPage = lazy(() => import("./pages/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 const EventManagementPage = lazy(() => import("./pages/EventManagementPage").then((module) => ({ default: module.EventManagementPage })));
+const FileLibraryPage = lazy(() => import("./pages/FileLibraryPage").then((module) => ({ default: module.FileLibraryPage })));
 const StudyGroupDetailsPage = lazy(() => import("./pages/StudyGroupDetailsPage").then((module) => ({ default: module.StudyGroupDetailsPage })));
 
 function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <PageTitle />
+      <SkipLink />
       <AuthProvider>
         <SocketProvider>
           <Suspense fallback={<p role="status" className="min-h-screen bg-canvas p-10 text-center text-ink-soft">Loading page...</p>}>
           <Routes>
+            <Route path="/admin" element={<RoleRoute roles={["ADMINISTRATOR"]}><Navigate to="/admin/reports" replace /></RoleRoute>} />
             <Route path="/admin/users" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminUsersPage /></RoleRoute>} />
             <Route path="/admin/reports" element={<RoleRoute roles={["ADMINISTRATOR"]}><AdminReportsPage /></RoleRoute>} />
             <Route path="/events/manage" element={<RoleRoute roles={["ORGANIZER", "ADMINISTRATOR"]}><EventManagementPage /></RoleRoute>} />
             <Route path="/study-groups/:id" element={<ProtectedRoute><StudyGroupDetailsPage /></ProtectedRoute>} />
+            <Route path="/files" element={<ProtectedRoute><FileLibraryPage /></ProtectedRoute>} />
             <Route path="/" element={<LandingPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/verify" element={<VerifyPage />} />
@@ -180,6 +188,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </Suspense>
         </SocketProvider>

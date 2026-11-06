@@ -144,7 +144,7 @@ export function LostFoundPage() {
     <div className="min-h-screen bg-canvas">
       <Nav />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
+      <main id="main" className="mx-auto w-full max-w-6xl px-4 py-10 sm:py-14">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">Lost &amp; Found</h1>
@@ -318,7 +318,7 @@ export function LostFoundPage() {
                       src={post.imageUrl}
                       alt={post.title}
                       loading="lazy"
-                      className={`aspect-[4/3] w-full object-cover ${resolved ? "opacity-60" : ""}`}
+                      className={`aspect-[4/3] w-full object-contain p-8 ${resolved ? "opacity-60" : ""}`}
                     />
                   ) : (
                     <div className="flex aspect-[4/3] items-center justify-center bg-canvas text-sm text-muted">
@@ -351,7 +351,7 @@ export function LostFoundPage() {
                         <dt className="font-medium text-ink">Posted by:</dt>
                         <dd className="min-w-0 break-words">
                           <Link to={isOwner ? "/profile" : `/u/${post.authorId}`} className="link">
-                            {isOwner ? "You" : post.author?.profile?.displayName || "CampusHub student"}
+                            {isOwner ? "You" : post.author?.profile?.displayName || "campus-hub student"}
                           </Link>
                         </dd>
                       </div>

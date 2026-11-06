@@ -8,7 +8,7 @@ export function EventChatContext({ event }: { event: CampusEventDto }) {
       <h2 className="mt-1 break-words font-semibold text-ink">{event.title}</h2>
       <p className="mt-1">{formatEventDateRange(event.startsAt, event.endDate, event.endsAt)} · {formatTimeRange(event.startsAt, event.endsAt)}</p>
       <p className="break-words">Location: {event.location}</p>
-      <p className="break-words">Organizer: {event.organizer?.profile?.displayName || "CampusHub organizer"}</p>
+      <p className="break-words">Organizer: {event.organizer?.profile?.displayName || "campus-hub organizer"}</p>
       <details open className="mt-2">
         <summary className="cursor-pointer font-medium text-brand">Description and photo</summary>
         <p className="mt-2 whitespace-pre-wrap break-words">{event.description}</p>

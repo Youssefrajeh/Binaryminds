@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import type { ConversationDto, MessageDto, MessagesPageDto } from "@campushub/shared";
 import { Avatar } from "./Avatar";
 import { EventChatContext } from "./EventChatContext";
 import { ListingChatContext } from "./ListingChatContext";
 import { ReportButton } from "./ReportButton";
-import { safeAttachmentUrl } from "@campushub/shared";
+import { MessageThreadSkeleton } from "./Skeletons";
+import { SharedFileLink } from "./SharedFileLink";
+import { SHARED_FILE_ACCEPT } from "@campushub/shared";
 import { useSocket } from "../context/SocketContext";
+import { apiErrorMessage } from "../lib/errors";
+import { readFileAsBase64, sharedFileProblem } from "../lib/files";
 import { formatDayLabel, formatMessageTime, newClientId } from "../lib/format";
 import api from "../lib/api";
 
@@ -53,7 +57,10 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
   const [text, setText] = useState("");
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
+  const fileInput = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
@@ -296,6 +303,34 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
     deliver(message.text, message.clientId ?? newClientId());
   }
 
+  /* ---- Sharing a file ---- */
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // Lets the student choose the same file again after an error
+    if (!file || uploading) return;
+
+    const problem = sharedFileProblem(file);
+    setUploadError(problem ?? "");
+    if (problem) return;
+
+    const caption = text.trim();
+    setUploading(true);
+    try {
+      const data = await readFileAsBase64(file);
+      const res = await api.post<MessageDto>(`/conversations/${conversationId}/files`, {
+        name: file.name, data, clientId: newClientId(), ...(caption ? { text: caption } : {}),
+      });
+      stickToBottom.current = true;
+      setMessages((list) => upsert(list, res.data));
+      if (caption) setText("");
+      stopTyping();
+    } catch (err) {
+      setUploadError(apiErrorMessage(err, "Could not share this file."));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   /* ---- Request / block actions ---- */
   async function runAction(action: "accept" | "ignore" | "block") {
     if (action === "block" && !window.confirm(`Block ${conversation.name}? They won't be able to message you here.`)) return;
@@ -315,6 +350,7 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
 
   const pendingOutgoing =
     conversation.type === "DIRECT" && conversation.status === "PENDING" && !conversation.isRequest;
+  const canShareFiles = conversation.type === "GROUP" || conversation.status === "ACCEPTED";
 
   return (
     <div className="flex h-full flex-col">
@@ -381,7 +417,7 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
         )}
 
         {loading ? (
-          <p className="py-10 text-center text-sm text-muted">Loading messages…</p>
+          <MessageThreadSkeleton />
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">
             {conversation.type === "GROUP" ? "No messages yet. Say hi to your study group!" : "No messages yet. Say hello!"}
@@ -414,7 +450,7 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
                     </div>
                     {!m.removedAt && m.attachments.map((file, index) => (
                       <div key={`${file.url}-${index}`} className="mt-2 max-w-full rounded-lg border border-line bg-canvas p-2 text-xs text-ink-soft">
-                        {safeAttachmentUrl(file.url) ? <a href={safeAttachmentUrl(file.url)!} target="_blank" rel="noopener noreferrer" className="link break-all">{file.name}</a> : <span className="break-all">{file.name} (link unavailable)</span>}
+                        <SharedFileLink url={file.url} name={file.name} />
                         <ReportButton targetType="FILE" targetId={m.id} ownerId={m.senderId} attachmentIndex={index} label={`Report file: ${file.name}`} />
                       </div>
                     ))}
@@ -463,7 +499,19 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
                 : "Your first message will appear in their Requests. They can accept or reply to continue."}
             </p>
           )}
+          {uploadError && <p role="alert" className="mb-2 text-xs text-danger">{uploadError}</p>}
+          {conversation.type === "GROUP" && (
+            <p className="mb-2 text-xs text-muted">Files shared here also appear in Course files, where any signed-in student can download them.</p>
+          )}
           <div className="flex items-end gap-2">
+            {canShareFiles && (
+              <>
+                <input ref={fileInput} type="file" accept={SHARED_FILE_ACCEPT} aria-label="Choose a file to share" className="sr-only" tabIndex={-1} onChange={handleFile} />
+                <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading} className="btn-secondary h-11 shrink-0 px-3">
+                  {uploading ? "Uploading…" : "Attach"}
+                </button>
+              </>
+            )}
             <label htmlFor="chat-input" className="sr-only">
               Message
             </label>

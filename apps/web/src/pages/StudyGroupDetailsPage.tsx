@@ -4,7 +4,8 @@ import type { StudyGroupDetailsDto, StudyGroupMemberDto } from "@campushub/share
 import { Nav } from "../components/Nav";
 import { Avatar } from "../components/Avatar";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { apiErrorMessage } from "../lib/errors";
+import { apiErrorMessage, isNotFound } from "../lib/errors";
+import { NotFoundState } from "../components/NotFoundState";
 import api from "../lib/api";
 
 type DetailsResult = { key: string; group: StudyGroupDetailsDto; members: StudyGroupMemberDto[]; hasMore: boolean };
@@ -15,7 +16,7 @@ export function StudyGroupDetailsPage() {
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [result, setResult] = useState<DetailsResult | null>(null);
-  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const [failure, setFailure] = useState<{ key: string; message: string; notFound: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -28,6 +29,7 @@ export function StudyGroupDetailsPage() {
   const key = JSON.stringify([id, page, reload]);
   const current = result?.key === key ? result : null;
   const error = failure?.key === key ? failure.message : "";
+  const notFound = failure?.key === key && failure.notFound;
   const loading = !current && !error;
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export function StudyGroupDetailsPage() {
     ]).then(([group, members]) => {
       if (!stale) setResult({ key, group: group.data, members: members.data, hasMore: members.headers?.["x-has-more"] === "true" });
     }).catch((err) => {
-      if (!stale) setFailure({ key, message: apiErrorMessage(err, "Could not load this study group.") });
+      if (!stale) setFailure({ key, message: apiErrorMessage(err, "Could not load this study group."), notFound: isNotFound(err) });
     });
     return () => { stale = true; };
   }, [id, page, key]);
@@ -65,21 +67,23 @@ export function StudyGroupDetailsPage() {
 
   return <div className="min-h-screen bg-canvas">
     <Nav />
-    <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <Link to="/study-groups" className="link text-sm">Back to study groups</Link>
+    <main id="main" className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+      {!notFound && <Link to="/study-groups" className="link text-sm">Back to study groups</Link>}
+      {notFound && <NotFoundState title="Study group not found" message="This study group doesn't exist. It may have been deleted when its last member left." backTo="/study-groups" backLabel="Back to study groups" />}
       {loading && <p role="status" className="mt-8 text-sm text-muted">Loading study group...</p>}
-      {error && <div role="alert" className="alert-error mt-6 flex flex-wrap items-center justify-between gap-3"><span>{error}</span><button type="button" className="btn-secondary" onClick={() => setReload((value) => value + 1)}>Try again</button></div>}
+      {error && !notFound && <div role="alert" className="alert-error mt-6 flex flex-wrap items-center justify-between gap-3"><span>{error}</span><button type="button" className="btn-secondary" onClick={() => setReload((value) => value + 1)}>Try again</button></div>}
       {notice && <p role="status" className="alert-success mt-6">{notice}</p>}
       {actionError && !confirmLeave && <p role="alert" className="alert-error mt-6">{actionError}</p>}
       {current && <>
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">{current.group.courseCode}</p>
           <h1 className="mt-2 break-words text-2xl font-semibold text-ink">{current.group.name}</h1>
-          <p className="mt-3 whitespace-pre-wrap break-words text-sm text-ink-soft">{current.group.description || "No description added."}</p>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm text-ink-soft">{current.group.description || <span className="italic text-muted">No description added.</span>}</p>
           <p className="mt-3 text-sm text-muted">{current.group.memberCount} member{current.group.memberCount === 1 ? "" : "s"}</p>
           <div className="mt-5 flex flex-wrap gap-3">
             {current.group.isMember ? <>
               {current.group.conversationId && <Link to={`/messages/${current.group.conversationId}`} className="btn-primary">Open chat</Link>}
+              <Link to={`/files?course=${encodeURIComponent(current.group.courseCode)}`} className="btn-secondary">Course files</Link>
               <button type="button" className="btn-secondary" disabled={busy} onClick={() => { setActionError(""); setConfirmLeave(true); }}>Leave group</button>
             </> : <button type="button" className="btn-primary" disabled={busy} onClick={() => changeMembership("join")}>{busy ? "Joining..." : "Join group"}</button>}
           </div>

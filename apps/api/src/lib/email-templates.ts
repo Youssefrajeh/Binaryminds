@@ -23,7 +23,7 @@ function logoUrl(): string | null {
 function logoBlock(): string {
   const url = logoUrl();
   const img = url
-    ? `<td style="padding-right:12px;vertical-align:middle;"><img src="${url}" width="44" height="33" alt="CampusHub" style="display:block;border:0;outline:none;" /></td>`
+    ? `<td style="padding-right:12px;vertical-align:middle;"><img src="${url}" width="44" height="33" alt="campus-hub" style="display:block;border:0;outline:none;" /></td>`
     : "";
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
@@ -49,7 +49,7 @@ function layout(preheader: string, content: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="color-scheme" content="light" />
-  <title>CampusHub</title>
+  <title>campus-hub</title>
   <!--[if mso]>
   <noscript>
     <xml>
@@ -97,7 +97,7 @@ function layout(preheader: string, content: string): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="border-top:1px solid ${LINE};padding-top:20px;font-family:${FONT};font-size:12px;line-height:1.6;color:${MUTED};">
-                    You are receiving this email because someone used this address on CampusHub,
+                    You are receiving this email because someone used this address on campus-hub,
                     the student community for Fanshawe College. If that wasn't you, you can safely ignore this message.
                   </td>
                 </tr>
@@ -108,7 +108,7 @@ function layout(preheader: string, content: string): string {
         <!--[if mso]></td></tr></table><![endif]-->
 
         <p style="margin:20px 0 0;font-family:${FONT};font-size:11px;color:#9ca3af;text-align:center;">
-          © ${new Date().getFullYear()} CampusHub · Built by Binary Minds
+          © ${new Date().getFullYear()} campus-hub · Built by Binary Minds
         </p>
       </td>
     </tr>
@@ -189,25 +189,25 @@ function escapeHtml(value: string): string {
 export function verificationEmailHtml(otp: string, expiryMinutes: number, firstName?: string | null): string {
   const greeting = firstName?.trim() ? `Hello ${escapeHtml(firstName.trim())},<br /><br />` : "";
   return codeEmail({
-    preheader: `Your CampusHub verification code is ${otp}. It expires in ${expiryMinutes} minutes.`,
+    preheader: `Your campus-hub verification code is ${otp}. It expires in ${expiryMinutes} minutes.`,
     eyebrow: "Email verification",
     title: "Verify your email address",
     intro:
-      `${greeting}Welcome to CampusHub. Enter the code below on the verification page to confirm your Fanshawe student email and activate your account.`,
+      `${greeting}Welcome to campus-hub. Enter the code below on the verification page to confirm your Fanshawe student email and activate your account.`,
     otp,
     expiryMinutes,
     noteTitle: "Keep it private.",
-    note: "CampusHub will never ask you for this code by phone, chat or email. Don't share it with anyone.",
+    note: "campus-hub will never ask you for this code by phone, chat or email. Don't share it with anyone.",
   });
 }
 
 export function passwordResetEmailHtml(otp: string, expiryMinutes: number): string {
   return codeEmail({
-    preheader: `Your CampusHub password reset code is ${otp}. It expires in ${expiryMinutes} minutes.`,
+    preheader: `Your campus-hub password reset code is ${otp}. It expires in ${expiryMinutes} minutes.`,
     eyebrow: "Password reset",
     title: "Reset your password",
     intro:
-      "We received a request to reset the password for your CampusHub account. Enter the code below to choose a new password.",
+      "We received a request to reset the password for your campus-hub account. Enter the code below to choose a new password.",
     otp,
     expiryMinutes,
     noteTitle: "Didn't request this?",

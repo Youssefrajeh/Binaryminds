@@ -15,9 +15,11 @@ export function Nav() {
     user?.profile?.displayName || user?.email?.split("@")[0] || "Profile";
   const [mobileOpen, setMobileOpen] = useState(false);
   const { unreadTotal, requestCount } = useSocket();
-  // The signed-in link row needs far more width than the guest one
-  const desktopNav = isAuthenticated ? "hidden xl:flex" : "hidden sm:flex";
-  const mobileOnly = isAuthenticated ? "xl:hidden" : "sm:hidden";
+  // The signed-in link row needs far more width than the guest one, and
+  // organizers and administrators get extra links on top of that
+  const staffLinks = user?.role === "ORGANIZER" || user?.role === "ADMINISTRATOR";
+  const desktopNav = !isAuthenticated ? "hidden sm:flex" : staffLinks ? "hidden 2xl:flex" : "hidden xl:flex";
+  const mobileOnly = !isAuthenticated ? "sm:hidden" : staffLinks ? "2xl:hidden" : "xl:hidden";
   const badge = unreadTotal + requestCount;
   const badgeEl =
     badge > 0 ? (
@@ -31,8 +33,10 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
-      <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6">
-        <Logo animated />
+      <div className={`mx-auto flex min-h-16 ${staffLinks ? "max-w-[96rem]" : "max-w-7xl"} items-center justify-between gap-4 px-4 py-2 sm:px-6`}>
+        <div className="shrink-0">
+          <Logo animated />
+        </div>
 
         {/* Desktop nav */}
         <nav className={`${desktopNav} min-w-0 flex-wrap items-center justify-end gap-1`}>
@@ -44,6 +48,9 @@ export function Nav() {
             <>
               <Link to="/study-groups" className={navLink}>
                 Study groups
+              </Link>
+              <Link to="/files" className={navLink}>
+                Course files
               </Link>
               <Link
                 to="/messages"
@@ -62,8 +69,7 @@ export function Nav() {
                 Events
               </Link>
               {(user?.role === "ORGANIZER" || user?.role === "ADMINISTRATOR") && <Link to="/events/manage" className={navLink}>Event Management</Link>}
-              {user?.role === "ADMINISTRATOR" && <Link to="/admin/users" className={navLink}>Admin users</Link>}
-              {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink}>Reports</Link>}
+              {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink}>Admin</Link>}
               <Link to="/members" className={navLink}>
                 Students
               </Link>
@@ -147,8 +153,7 @@ export function Nav() {
               <>
                 <Link to="/marketplace" className={navLink} onClick={() => setMobileOpen(false)}>Marketplace</Link>
                 {(user?.role === "ORGANIZER" || user?.role === "ADMINISTRATOR") && <Link to="/events/manage" className={navLink} onClick={() => setMobileOpen(false)}>Event Management</Link>}
-                {user?.role === "ADMINISTRATOR" && <Link to="/admin/users" className={navLink} onClick={() => setMobileOpen(false)}>Admin users</Link>}
-                {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink} onClick={() => setMobileOpen(false)}>Reports</Link>}
+                {user?.role === "ADMINISTRATOR" && <Link to="/admin/reports" className={navLink} onClick={() => setMobileOpen(false)}>Admin</Link>}
                 <Link
                   to="/messages"
                   className={`${navLink} flex items-center gap-1.5`}
@@ -164,6 +169,7 @@ export function Nav() {
                 >
                   Study groups
                 </Link>
+                <Link to="/files" className={navLink} onClick={() => setMobileOpen(false)}>Course files</Link>
                 <Link
                   to="/lost-found"
                   className={navLink}

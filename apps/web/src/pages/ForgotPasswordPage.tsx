@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { AuthLayout } from "../components/AuthLayout";
+import { FanshaweEmailInput } from "../components/FanshaweEmailInput";
 import api from "../lib/api";
 
 export function ForgotPasswordPage() {
@@ -12,6 +13,10 @@ export function ForgotPasswordPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (!email) {
+      setError("Enter your Fanshawe ID, e.g. y_rajeh");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -27,7 +32,7 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout
       title="Forgot your password?"
-      subtitle="Enter your email and we'll send you a reset code."
+      subtitle="Enter your Fanshawe ID and we'll send you a reset code."
       footer={
         <>
           Remember your password?{" "}
@@ -44,20 +49,7 @@ export function ForgotPasswordPage() {
           </div>
         )}
 
-        <div>
-          <label htmlFor="forgot-email" className="field-label">
-            Email
-          </label>
-          <input
-            id="forgot-email"
-            type="email"
-            required
-            placeholder="you@fanshaweonline.ca"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="field-input"
-          />
-        </div>
+        <FanshaweEmailInput id="forgot-email" required value={email} onChange={setEmail} />
 
         <button
           type="submit"

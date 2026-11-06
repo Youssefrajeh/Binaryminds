@@ -311,6 +311,7 @@ export function ResetPasswordPage() {
           </label>
           <PasswordInput
             id="reset-password"
+            toggleLabel="new password"
             required
             placeholder="Create a strong password"
             value={newPassword}
@@ -326,6 +327,7 @@ export function ResetPasswordPage() {
           </label>
           <PasswordInput
             id="reset-confirm"
+            toggleLabel="confirm password"
             required
             placeholder="Re-enter your new password"
             value={confirmPassword}
