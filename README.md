@@ -12,13 +12,18 @@
 
 Team **Binary Minds** · INFO-5103 · Fall 2026
 
+**[Open the live site](https://campus-hub-229x.onrender.com)**
+
 <img src="docs/images/landing-light.png" alt="CampusHub landing page" width="760" />
 
 </div>
 
+> The live site runs on Render's free plan. If nobody has used it for a while, the first page can take up to a minute to load while the server starts.
+
 ## Contents
 
 - [Why CampusHub](#why-campushub)
+- [Team](#team)
 - [Features](#features)
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
@@ -37,6 +42,14 @@ Team **Binary Minds** · INFO-5103 · Fall 2026
 ## Why CampusHub
 
 Student life is spread across group chats, notice boards, and public marketplaces, where you can't tell who you're dealing with. CampusHub brings it together behind Fanshawe email verification, so every member is a confirmed student.
+
+## Team
+
+| Member | Role |
+|---|---|
+| Youssef Rajeh | Front-end lead |
+| Abdul Maarouf | Scrum master and back-end lead |
+| Urshit Patel | Database, deployment, and testing |
 
 ## Features
 
@@ -61,7 +74,8 @@ Student life is spread across group chats, notice boards, and public marketplace
 | **Database** | MongoDB with Prisma ORM |
 | **Auth** | JSON Web Tokens, bcrypt password hashing |
 | **Email** | Brevo HTTPS API |
-| **Testing** | Vitest, Testing Library, Supertest, disposable in-memory MongoDB |
+| **Images** | sharp, for WebP thumbnails of uploaded photos |
+| **Testing** | Vitest, Testing Library, Supertest, disposable in-memory MongoDB, Cypress |
 | **Tooling** | npm workspaces, oxlint, GitHub Actions |
 
 ## Project structure
@@ -69,12 +83,13 @@ Student life is spread across group chats, notice boards, and public marketplace
 ```text
 apps/
   api/          Express API, Socket.IO server, and Prisma schema
-  web/          React single-page app
+  web/          React single-page app and Cypress end-to-end tests
 packages/
   shared/       Types and helpers shared by the API and the web app
 deploy/         Oracle Cloud setup scripts, Nginx, and systemd config
-docs/           Build plan, architecture decisions, and screenshots
+docs/           Build plan, sprint notes, architecture decisions, user guide, and screenshots
 render.yaml     Render deployment blueprint
+sprint-03.md    Sprint 3 plan
 ```
 
 ## Getting started
@@ -139,14 +154,16 @@ Set these in `apps/api/.env`.
 | Variable | Required | Purpose |
 |---|---|---|
 | `DATABASE_URL` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes | Secret for signing login tokens |
+| `JWT_SECRET` | Yes | Secret for signing login tokens. The API won't start in production without it. |
 | `BREVO_API_KEY` | For email | Brevo API key |
 | `EMAIL_FROM_ADDRESS` | For email | Sender address validated in Brevo |
-| `ALLOWED_EMAIL_DOMAIN` | No | The only email domain that may register |
-| `PORT` | No | API port |
+| `EMAIL_FROM_NAME` | No | Sender name on system emails; defaults to `campus-hub` |
 | `EMAIL_REPLY_TO` | No | Reply address for system emails; defaults to the sender |
+| `ALLOWED_EMAIL_DOMAIN` | No | The only email domain that may register, such as `fanshaweonline.ca` |
+| `PORT` | No | API port; defaults to `4000` |
 | `APP_URL` | No | Public site URL, used for the logo in emails |
-| `CLIENT_URL` | Production | Allowed web origin |
+| `CLIENT_URL` | No | Allowed web origins, separated by commas. Leave it unset when the API serves the web app itself, as it does locally and on Render. |
+| `NODE_ENV` | Production | Set to `production` to require a real `JWT_SECRET` |
 
 ## Scripts
 
@@ -157,6 +174,7 @@ Run these from the repository root.
 | `npm run dev:api` | Starts the API and restarts it on changes |
 | `npm run dev:web` | Starts the web app with hot reload |
 | `npm run build` | Builds the shared package, API, and web app |
+| `npm run start -w @campushub/api` | Runs the built app, serving the API and the web app on one port |
 | `npm run typecheck` | Type-checks all workspaces |
 | `npm run lint` | Lints all workspaces |
 | `npm test` | Runs all tests |
@@ -272,7 +290,57 @@ On **Admin users**, administrators can **Suspend** an active account or **Reacti
 
 ## API reference
 
-All endpoints are under `/api` and require a Bearer token from an active account, except registration and login. Paginated lists send an `X-Has-More` header.
+All endpoints are under `/api` and require a Bearer token from an active account, except the health check and the sign-in routes under `/auth`. Paginated lists send an `X-Has-More` header. Errors always come back as JSON in the form `{ "error": "..." }`.
+
+<details>
+<summary><strong>Health and sign-in</strong></summary>
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Health check, also served at `/health` |
+| `POST` | `/auth/register` | Start a sign-up and email a verification code |
+| `POST` | `/auth/resend-verification` | Send a new verification code |
+| `POST` | `/auth/verify` | Confirm the code and create the account |
+| `POST` | `/auth/login` | Sign in and receive a token |
+| `POST` | `/auth/logout` | Sign out |
+| `POST` | `/auth/forgot-password` | Email a reset code |
+| `POST` | `/auth/reset-password` | Set a new password; ends every existing session |
+
+</details>
+
+<details>
+<summary><strong>Marketplace</strong></summary>
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/listings/categories` | List categories |
+| `GET` | `/listings` | Filter by `search`, `categoryId`, `condition`, `minPrice`, `maxPrice`, `mine`, `page`, `limit` |
+| `GET` | `/listings/:id` | Listing details with full photos |
+| `POST` | `/listings` | Create a listing with up to 5 photos |
+| `PUT` | `/listings/:id` | Edit your listing |
+| `PATCH` | `/listings/:id/sold` | Mark your listing sold |
+| `DELETE` | `/listings/:id` | Delete your listing |
+
+</details>
+
+<details>
+<summary><strong>Messaging</strong></summary>
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/conversations` | Start or reopen a chat (`recipientId`, optional `listingId` or `eventId`) |
+| `GET` | `/conversations?tab=inbox` | List conversations; `tab` is `inbox` or `requests` |
+| `GET` | `/conversations/counts` | Unread and request counts |
+| `GET` | `/conversations/:id` | Conversation details |
+| `GET` | `/conversations/:id/messages` | Message history |
+| `PATCH` | `/conversations/:id/read` | Mark as read |
+| `PATCH` | `/conversations/:id/accept` | Accept a message request |
+| `PATCH` | `/conversations/:id/ignore` | Ignore a message request |
+| `PATCH` | `/conversations/:id/block` | Block the other person |
+
+New messages are sent and received over Socket.IO, using the same token.
+
+</details>
 
 <details>
 <summary><strong>Lost & Found</strong></summary>
@@ -332,7 +400,12 @@ All endpoints are under `/api` and require a Bearer token from an active account
 
 | Method | Endpoint | Purpose |
 |---|---|---|
+| `GET` | `/profile/me` | Your profile |
+| `PUT` | `/profile/me` | Update your program, courses, and interests |
+| `PUT` | `/profile/me/avatar` | Upload a profile photo |
+| `DELETE` | `/profile/me/avatar` | Remove your profile photo |
 | `GET` | `/profile/search` | Search by `q`, `program`, `course`, `interest`, `page` |
+| `GET` | `/profile/:userId` | Another student's public profile |
 
 </details>
 
@@ -354,27 +427,51 @@ All endpoints are under `/api` and require a Bearer token from an active account
 
 - **Verified members only.** Registration requires an allowed email domain and an emailed code.
 - **Access checks on every request.** Accounts and roles are read from the database, so suspended users and revoked roles lose access even with a valid token.
+- **Password resets end old sessions.** Every token issued before a reset stops working, in the browser and in open chat connections.
+- **Sign-up can't be hijacked.** While an address waits for verification, nobody can register it again with a different password.
+- **Login gives nothing away.** Wrong passwords and unknown emails take the same time and return the same message.
 - **Ownership comes from the session.** The API never trusts an account ID sent by the client.
 - **Uploads are checked on the server.** Photos and files are validated by size and actual file signature, not only by name or declared type.
 - **Files can't run on the site.** Shared files are always sent as downloads, with content sniffing turned off and a sandbox policy.
 - **Private data stays private.** Public profile and search results leave out email addresses and credentials. Administrators can open a direct message file only after it's reported.
-- **Rate limiting.** Login attempts, message sending, and file uploads are limited.
+- **Rate limiting.** Sign-in attempts are limited per email and IP address, and per email across all addresses. Message sending and file uploads are limited too.
+- **Small request bodies.** Requests are capped at 100 KB, except upload routes, which accept larger bodies only after the session is checked.
+- **No leaked internals.** Errors are returned as short JSON messages, never stack traces.
 
 ## Testing
+
+### Unit and integration tests
 
 ```bash
 npm test
 ```
 
-The suite covers API routes, validation, permissions, and React pages and components. Database tests run against a disposable local MongoDB replica set, so they never touch your Atlas or development database. The test library downloads a MongoDB binary on its first run.
+The suite covers API routes, validation, permissions, security rules, photo thumbnails, and React pages and components. Database tests run against a disposable local MongoDB replica set, so they never touch your Atlas or development database. The test library downloads a MongoDB binary on its first run.
 
-GitHub Actions runs type checks, linting, the build, and tests on every push and pull request to `main`.
+### End-to-end tests
+
+```bash
+npm run dev:web     # in one terminal
+npm run test:e2e    # in another
+```
+
+Cypress drives the real web app in a browser, with the API stubbed, so no database or email is needed. The specs in `apps/web/cypress/e2e/` cover:
+
+| Spec | Flows |
+|---|---|
+| `auth.cy.ts` | Logging in, suspended accounts, signing up with the emailed code, and sessions ended on the server |
+| `messages.cy.ts` | Opening a chat, accepting a request, sharing a PDF, and retrying a message sent while offline |
+| `events.cy.ts` | Editing an event that has already started |
+
+### Continuous integration
+
+GitHub Actions runs type checks, linting, the build, and `npm test` on every push and pull request to `main`. The Cypress tests run locally.
 
 ## Deployment
 
-CampusHub runs as one Node service that serves both the API and the built web app.
+CampusHub runs as one Node service that serves both the API and the built web app. The live site is at **https://campus-hub-229x.onrender.com**.
 
-- **Render:** use the included [`render.yaml`](render.yaml) blueprint.
+- **Render:** use the included [`render.yaml`](render.yaml) blueprint. It uses Node 24, sets `NODE_ENV=production`, generates `JWT_SECRET`, and checks `/health`. Fill in `DATABASE_URL`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`, and `APP_URL` in the Render dashboard. Because `NODE_ENV=production` makes npm skip development packages, the build command installs them with `--include=dev`.
 - **Oracle Cloud:** follow [`deploy/README.md`](deploy/README.md) to set up a VM with Nginx, HTTPS, and systemd.
 
 ## Updating an existing database
@@ -387,12 +484,14 @@ npm run prisma:generate -w @campushub/api
 npm run prisma:push -w @campushub/api
 ```
 
-Older records stay valid. Lost and found posts without a category appear as **Other**, and reports with the older `ACTIONED` status appear as **Resolved**.
+Older records stay valid. Lost and found posts without a category appear as **Other**, and reports with the older `ACTIONED` status appear as **Resolved**. Listings, events, and lost and found posts saved before thumbnails existed get their thumbnail made the first time they appear in a list.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
+| [`docs/campus-hub-user-guide.docx`](docs/campus-hub-user-guide.docx) | User guide for students, organizers, and administrators |
 | [`docs/CAMPUSHUB_PLAN.md`](docs/CAMPUSHUB_PLAN.md) | Scope, backlog, schedule, and risks |
+| [`docs/sprint-1.md`](docs/sprint-1.md), [`sprint-03.md`](sprint-03.md) | Sprint plans and progress |
 | [`docs/adr/`](docs/adr) | Architecture decisions |
 | [`deploy/README.md`](deploy/README.md) | Production deployment guide |

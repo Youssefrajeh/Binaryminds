@@ -1,32 +1,12 @@
-# React + TypeScript + Vite
+# @campushub/web
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The CampusHub React single-page app, built with Vite, React Router, and Tailwind CSS.
 
-Currently, two official plugins are available:
+See the [main README](../../README.md) for setup, scripts, and testing.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+| Command (from the repository root) | What it does |
+|---|---|
+| `npm run dev:web` | Starts the app at http://localhost:5173 and forwards `/api` to the API |
+| `npm test -w @campushub/web` | Runs the page and component tests |
+| `npm run test:e2e` | Runs the Cypress end-to-end tests against the running dev server |
+| `npm run cy:open -w @campushub/web` | Opens the Cypress test runner |
