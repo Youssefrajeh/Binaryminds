@@ -18,6 +18,7 @@ import {
   findMembership,
   toConversationDto,
   toMessageDto,
+  withChatThumbnails,
 } from "../lib/conversations.js";
 
 export const conversationsRouter = Router();
@@ -173,7 +174,7 @@ conversationsRouter.post("/", async (req, res) => {
     }
     const unread = me ? await countUnread(conversation.id, userId, me.lastReadAt) : 0;
 
-    res.status(created ? 201 : 200).json(toConversationDto(conversation, userId, unread));
+    res.status(created ? 201 : 200).json(toConversationDto(await withChatThumbnails(conversation), userId, unread));
   } catch (err) {
     console.error("Start conversation error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -245,7 +246,7 @@ conversationsRouter.get("/:id", async (req, res) => {
     });
     const unread = await countUnread(conversation.id, userId, membership.participant.lastReadAt);
 
-    res.json(toConversationDto(conversation, userId, unread));
+    res.json(toConversationDto(await withChatThumbnails(conversation), userId, unread));
   } catch (err) {
     console.error("Get conversation error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -364,6 +365,10 @@ conversationsRouter.patch("/:id/accept", async (req, res) => {
       where: { id: conversation.id },
       data: { status: "ACCEPTED" },
     });
+
+    // The requester's chat drops its "waiting for them to accept" state without a reload
+    const members = await prisma.participant.findMany({ where: { conversationId: conversation.id }, select: { userId: true } });
+    emitToUsers(members.map((member) => member.userId), "conversation:updated", { conversationId: conversation.id });
 
     res.json({ message: "Request accepted" });
   } catch (err) {

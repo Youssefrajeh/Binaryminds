@@ -62,7 +62,8 @@ function toForm(event: CampusEvent): Form {
   };
 }
 
-function validate(form: Form): Errors<Field> {
+/** `originalStart` is the saved start of the event being edited, if any */
+function validate(form: Form, originalStart?: string): Errors<Field> {
   const errors: Errors<Field> = {};
   if (!form.title.trim()) errors.title = "Title is required.";
   if (!form.description.trim()) errors.description = "Description is required.";
@@ -72,7 +73,10 @@ function validate(form: Form): Errors<Field> {
   if (form.endDate && form.date && form.endDate < form.date) errors.endDate = "End date cannot be before the start date.";
 
   if (form.date && form.startTime) {
-    if (new Date(`${form.date}T${form.startTime}`).getTime() <= Date.now()) {
+    const start = new Date(`${form.date}T${form.startTime}`).getTime();
+    // An event that has already started can still be edited if its start time stays the same
+    const startUnchanged = originalStart !== undefined && start === new Date(originalStart).getTime();
+    if (!startUnchanged && start <= Date.now()) {
       errors.startTime = "The event must start in the future.";
     }
     if (form.endTime && new Date(`${form.endDate || form.date}T${form.endTime}`).getTime() <= new Date(`${form.date}T${form.startTime}`).getTime()) {
@@ -159,7 +163,7 @@ export function EventFormPage() {
     if (uploading || photoError || submitting) return;
     setSubmitError("");
 
-    const found = validate(form);
+    const found = validate(form, event?.startsAt);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
@@ -291,7 +295,8 @@ export function EventFormPage() {
                   <input
                     id="ev-date"
                     type="date"
-                    min={new Date().toLocaleDateString("en-CA")}
+                    // Editing a started event keeps its original day selectable
+                    min={[new Date().toLocaleDateString("en-CA"), ...(event ? [new Date(event.startsAt).toLocaleDateString("en-CA")] : [])].sort()[0]}
                     className="field-input"
                     value={form.date}
                     onChange={(e) => update("date", e.target.value)}

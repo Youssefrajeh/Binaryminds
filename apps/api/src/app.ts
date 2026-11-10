@@ -3,7 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import { corsOptions } from "./lib/cors.js";
-import express from "express";
+import express, { type ErrorRequestHandler, type RequestHandler } from "express";
+import { requireAuth } from "./middleware/auth.middleware.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./routes/auth.js";
 import { profileRouter } from "./routes/profile.js";
@@ -24,8 +25,11 @@ export function createApp() {
   app.set("trust proxy", 1);
 
   app.use(cors(corsOptions()));
-  // Large enough for listing photos (up to 5 x 2 MB) sent as data URLs
-  app.use(express.json({ limit: "16mb" }));
+  // Photos and files arrive as base64 inside JSON, so only those routes accept
+  // large bodies, and only from a signed-in student. Everything else, including
+  // the public sign-in routes, is capped small before any work is done.
+  for (const [path, limit] of UPLOAD_BODY_LIMITS) app.use(path, uploadBody(limit));
+  app.use(express.json({ limit: "100kb" }));
 
   const apiRouter = express.Router();
   apiRouter.use("/health", healthRouter);
@@ -59,5 +63,52 @@ export function createApp() {
     });
   }
 
+  // Must come after every route: turns errors into the JSON shape the web app reads
+  app.use(jsonErrors);
+
   return app;
 }
+
+/** Routes that take photos or files, with their largest allowed request */
+const UPLOAD_BODY_LIMITS: [string, string][] = [
+  ["/api/listings", "16mb"], // up to 5 photos of 2 MB
+  ["/api/conversations", "8mb"], // one shared file of up to 5 MB
+  ["/api/events", "4mb"], // one 2 MB photo
+  ["/api/lost-found", "4mb"], // one 2 MB photo
+  ["/api/profile/me/avatar", "1mb"], // a resized 300 KB avatar
+];
+
+/** Checks the session before reading a large body on a write request */
+function uploadBody(limit: string): RequestHandler {
+  const parse = express.json({ limit });
+  return (req, res, next) => {
+    if (req.method !== "POST" && req.method !== "PUT" && req.method !== "PATCH") return next();
+    // If the session check answers first (401), discard the rest of the upload
+    // without parsing or storing it. Closing mid-upload would reset the
+    // connection, and the browser would show a network error, not the 401.
+    res.once("finish", () => {
+      if (!req.complete) req.resume();
+    });
+    void requireAuth(req, res, (err?: unknown) => (err ? next(err) : parse(req, res, next)));
+  };
+}
+
+/**
+ * Express's default handler answers errors with an HTML page that includes
+ * the stack trace whenever NODE_ENV is not "production". Always answer with
+ * JSON instead, and keep internal details in the server log.
+ */
+const jsonErrors: ErrorRequestHandler = (err, _req, res, next) => {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+  const status = typeof err?.status === "number" && err.status >= 400 && err.status < 500 ? err.status : 500;
+  if (status === 500) console.error("Unhandled error:", err);
+  const message =
+    err?.type === "entity.parse.failed" ? "The request body is not valid JSON"
+    : err?.type === "entity.too.large" ? "The request is too large"
+    : status === 500 ? "Internal server error"
+    : "The request could not be processed";
+  res.status(status).json({ error: message });
+};

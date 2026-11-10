@@ -98,6 +98,24 @@ describe("MarketplacePage", () => {
     );
   });
 
+  it("shows a listing once when a new post pushes it onto the next page", async () => {
+    const second = { ...listing, id: "l2", title: "Desk lamp" };
+    const third = { ...listing, id: "l3", title: "Bike lock" };
+    // Page 1: l1, l2. Someone posts a listing, so page 2 starts with l2 again.
+    get.mockImplementation((url: string, config?: { params?: { page?: number } }) => Promise.resolve({
+      data: url === "/listings/categories" ? [] : config?.params?.page === 2 ? [second, third] : [listing, second],
+      headers: { "x-has-more": config?.params?.page === 2 ? "false" : "true" },
+    }));
+    await renderPage();
+    await screen.findByText("Desk lamp");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Load more" }));
+
+    await screen.findByText("Bike lock");
+    expect(screen.getAllByText("Desk lamp")).toHaveLength(1);
+    expect(screen.getAllByText(/Calculus textbook|Desk lamp|Bike lock/)).toHaveLength(3);
+  });
+
   it("hides Load more on the last page", async () => {
     mockApi([listing], false);
     renderPage();

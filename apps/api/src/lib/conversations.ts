@@ -1,6 +1,7 @@
 import type { Conversation, Message, Participant, Prisma } from "@prisma/client";
 import type { ConversationDto, ConversationSummaryDto, MessageDto } from "@campushub/shared";
 import { prisma } from "./prisma.js";
+import { eventThumbnails, listingImageThumbnails } from "./photoThumbnails.js";
 
 /* ------------------------------------------------------------------ */
 /*  Keys and membership                                                */
@@ -84,10 +85,17 @@ export function conversationWhere(userId: string, tab: "inbox" | "requests"): Pr
 export const conversationInclude = {
   listing: { select: {
     id: true, title: true, description: true, priceCents: true, condition: true, status: true,
-    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
+    // The chat card shows the cover small, so it reads the thumbnail only
+    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { id: true, thumbnailUrl: true } },
     seller: { select: { profile: { select: { displayName: true } } } },
   } },
-  event: { include: { organizer: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } } } },
+  // Every field the card needs, with the thumbnail in place of the full photo.
+  // The chat reloads this after live updates, so a full photo would be sent many times.
+  event: { select: {
+    id: true, organizerId: true, title: true, description: true, startsAt: true, endsAt: true,
+    endDate: true, location: true, status: true, thumbnailUrl: true,
+    organizer: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } },
+  } },
   participants: {
     // MongoDB can retain participant rows after an account is removed externally.
     // Filter the relation before Prisma attempts to materialize its required user.
@@ -115,6 +123,22 @@ export function toConversationSummaryDto(conversation: Prisma.ConversationGetPay
 }
 
 export type ConversationWithMembers = Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>;
+
+/**
+ * Fills in the listing and event thumbnails of a conversation loaded with
+ * conversationInclude, creating them for photos saved before thumbnails existed.
+ */
+export async function withChatThumbnails(conversation: ConversationWithMembers): Promise<ConversationWithMembers> {
+  const cover = conversation.listing?.images[0];
+  if (cover && cover.thumbnailUrl == null) {
+    cover.thumbnailUrl = (await listingImageThumbnails([cover])).get(cover.id) ?? null;
+  }
+  const event = conversation.event;
+  if (event && event.thumbnailUrl == null) {
+    event.thumbnailUrl = (await eventThumbnails([event])).get(event.id) ?? null;
+  }
+  return conversation;
+}
 
 function displayNameFor(user: { email: string; profile: { displayName: string } | null }) {
   return user.profile?.displayName || user.email.split("@")[0];
@@ -145,14 +169,15 @@ export function toConversationDto(
       priceCents: conversation.listing.priceCents,
       condition: conversation.listing.condition,
       status: conversation.listing.status,
-      imageUrl: conversation.listing.images[0]?.url ?? null,
+      imageUrl: conversation.listing.images[0]?.thumbnailUrl || null,
       sellerName: conversation.listing.seller.profile?.displayName || "campus-hub seller",
     } : null,
-    event: conversation.event ? {
-      ...conversation.event,
-      startsAt: conversation.event.startsAt.toISOString(),
-      endsAt: conversation.event.endsAt?.toISOString() ?? null,
-    } : null,
+    event: conversation.event ? (({ thumbnailUrl, ...event }) => ({
+      ...event,
+      imageUrl: thumbnailUrl || null,
+      startsAt: event.startsAt.toISOString(),
+      endsAt: event.endsAt?.toISOString() ?? null,
+    }))(conversation.event) : null,
     type: conversation.type,
     name,
     status: conversation.status,

@@ -1,7 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { disconnectUser } from "../socket/io.js";
 import { signToken } from "../lib/jwt.js";
 import { generateOtp } from "../lib/otp.js";
 import { sendEmail, isAllowedDomain } from "../lib/email.js";
@@ -25,22 +27,40 @@ const OTP_EXPIRY_MINUTES = 15;
 
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
+// Password guesses spread over many IP addresses still count against the account.
+// Higher than the per-IP cap so one attacker cannot lock a student out as easily.
+export const MAX_LOGIN_ATTEMPTS_PER_EMAIL = 30;
 
 /**
  * Limits attempts per key (read from the request body's email). 6-digit codes
  * stay valid for 15 minutes, so guessing has to be capped per email address.
+ * With `includeIp`, each email + IP pair gets MAX_ATTEMPTS, and `emailMax`
+ * adds a second cap on the email across all IP addresses.
  */
-function attemptLimit(scope: string, includeIp: boolean) {
+function attemptLimit(scope: string, includeIp: boolean, emailMax?: number) {
   const limiter = createRateLimiter(MAX_ATTEMPTS, ATTEMPT_WINDOW_MS);
+  const emailLimiter = emailMax ? createRateLimiter(emailMax, ATTEMPT_WINDOW_MS) : null;
   return (req: Request, res: Response, next: NextFunction) => {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const key = `${scope}:${email}${includeIp ? `:${req.ip}` : ""}`;
-    if (!limiter.tryConsume(key)) {
+    if (!limiter.tryConsume(key) || (emailLimiter && !emailLimiter.tryConsume(`${scope}:${email}`))) {
       res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
       return;
     }
     next();
   };
+}
+
+// Compared against when no account matches, so a login for an unknown email
+// takes as long as a wrong password and response times don't reveal accounts.
+let dummyHash: Promise<string> | null = null;
+function timingSafeDummyHash() {
+  dummyHash ??= bcrypt.hash("campushub-timing-equalizer", BCRYPT_ROUNDS);
+  return dummyHash;
+}
+
+function isUniqueConstraintError(err: unknown) {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
 /* ------------------------------------------------------------------ */
@@ -125,8 +145,7 @@ function userToDto(user: {
   };
 }
 
-async function generateAndStoreOtp(userId: string): Promise<string> {
-  const otp = generateOtp();
+async function storeOtp(userId: string, otp: string): Promise<void> {
   const otpHash = await bcrypt.hash(otp, OTP_BCRYPT_ROUNDS);
   const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
@@ -134,8 +153,6 @@ async function generateAndStoreOtp(userId: string): Promise<string> {
     where: { id: userId },
     data: { otpHash, otpExpiresAt },
   });
-
-  return otp;
 }
 
 /* ------------------------------------------------------------------ */
@@ -162,6 +179,36 @@ authRouter.post("/register", attemptLimit("register", true), async (req, res) =>
     }
     if (existing) {
       await prisma.user.delete({ where: { id: existing.id } });
+    }
+
+    // A sign-up still waiting for its code keeps the password it was started
+    // with. Otherwise anyone could re-register the address with their own
+    // password, and the real student's code would create an account the
+    // other person can log in to.
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email } });
+    if (pending && pending.otpExpiresAt > new Date()) {
+      if (!(await bcrypt.compare(password, pending.passwordHash))) {
+        res.status(409).json({
+          error: `A sign-up for this email is already waiting for verification. Enter the code we emailed, or try again in ${OTP_EXPIRY_MINUTES} minutes.`,
+        });
+        return;
+      }
+      // Same student starting again: send a fresh code, keep everything else
+      const otp = generateOtp();
+      await sendEmail({
+        to: email,
+        subject: "campus-hub — Verify your email",
+        html: verificationEmailHtml(otp, OTP_EXPIRY_MINUTES, pending.firstName ?? firstName),
+      });
+      await prisma.pendingRegistration.update({
+        where: { email },
+        data: {
+          otpHash: await bcrypt.hash(otp, OTP_BCRYPT_ROUNDS),
+          otpExpiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+        },
+      });
+      res.status(201).json({ message: "Check your email for the verification code." });
+      return;
     }
 
     const otp = generateOtp();
@@ -297,19 +344,30 @@ authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
     // The name given at sign-up becomes the profile's display name
     const fullName = [pending.firstName, pending.lastName].filter(Boolean).join(" ");
 
-    const updated = await prisma.user.create({
-      data: {
-        email,
-        passwordHash: pending.passwordHash,
-        emailVerifiedAt: new Date(),
-        termsAcceptedAt: pending.termsAcceptedAt,
-        status: "ACTIVE",
-        role: "STUDENT",
-        ...(fullName ? { profile: { create: { displayName: fullName, interests: [] } } } : {}),
-      },
-      include: { profile: true },
-    });
-    await prisma.pendingRegistration.delete({ where: { email } });
+    let updated;
+    try {
+      updated = await prisma.user.create({
+        data: {
+          email,
+          passwordHash: pending.passwordHash,
+          emailVerifiedAt: new Date(),
+          termsAcceptedAt: pending.termsAcceptedAt,
+          status: "ACTIVE",
+          role: "STUDENT",
+          ...(fullName ? { profile: { create: { displayName: fullName, interests: [] } } } : {}),
+        },
+        include: { profile: true },
+      });
+    } catch (err) {
+      // A second Verify click raced the first one, which already created the account
+      if (isUniqueConstraintError(err)) {
+        res.status(409).json({ error: "This email is already verified. Please log in." });
+        return;
+      }
+      throw err;
+    }
+    // A concurrent verification may already have removed the pending record
+    await prisma.pendingRegistration.delete({ where: { email } }).catch(() => {});
 
     const token = signToken({ userId: updated.id, role: updated.role });
 
@@ -324,7 +382,7 @@ authRouter.post("/verify", attemptLimit("verify", false), async (req, res) => {
 /*  POST /auth/login                                                   */
 /* ------------------------------------------------------------------ */
 
-authRouter.post("/login", attemptLimit("login", true), async (req, res) => {
+authRouter.post("/login", attemptLimit("login", true, MAX_LOGIN_ATTEMPTS_PER_EMAIL), async (req, res) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -343,6 +401,7 @@ authRouter.post("/login", attemptLimit("login", true), async (req, res) => {
     });
 
     if (!user) {
+      await bcrypt.compare(password, await timingSafeDummyHash());
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
@@ -405,13 +464,16 @@ authRouter.post("/forgot-password", attemptLimit("forgot", true), async (req, re
       return;
     }
 
-    const otp = await generateAndStoreOtp(user.id);
+    const otp = generateOtp();
 
+    // Send first: if the email fails, a code the student already has stays valid
     await sendEmail({
       to: email,
       subject: "campus-hub — Reset your password",
       html: passwordResetEmailHtml(otp, OTP_EXPIRY_MINUTES),
     });
+
+    await storeOtp(user.id, otp);
 
     res.json({ message: "If that email is registered, a reset code has been sent." });
   } catch (err) {
@@ -463,8 +525,11 @@ authRouter.post("/reset-password", attemptLimit("reset", false), async (req, res
         passwordHash,
         otpHash: null,
         otpExpiresAt: null,
+        // Ends every existing session, including any held by whoever knew the old password
+        passwordChangedAt: new Date(),
       },
     });
+    disconnectUser(user.id);
 
     res.json({ message: "Password has been reset. You can now log in." });
   } catch (err) {

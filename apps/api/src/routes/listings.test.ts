@@ -90,7 +90,7 @@ describe("GET /api/listings price filter and pagination", () => {
   });
 
   it("returns one page and flags that more exist", async () => {
-    prisma.listing.findMany.mockResolvedValue(Array.from({ length: 3 }, (_, i) => ({ id: `l${i}` })));
+    prisma.listing.findMany.mockResolvedValue(Array.from({ length: 3 }, (_, i) => ({ id: `l${i}`, images: [] })));
     const res = await request(app).get("/api/listings?page=2&limit=2").set("Authorization", auth);
     expect(res.body).toHaveLength(2);
     expect(res.headers["x-has-more"]).toBe("true");
@@ -100,7 +100,7 @@ describe("GET /api/listings price filter and pagination", () => {
   });
 
   it("flags the last page", async () => {
-    prisma.listing.findMany.mockResolvedValue([{ id: "l1" }]);
+    prisma.listing.findMany.mockResolvedValue([{ id: "l1", images: [] }]);
     const res = await request(app).get("/api/listings").set("Authorization", auth);
     expect(res.headers["x-has-more"]).toBe("false");
   });
@@ -161,8 +161,8 @@ describe("POST /api/listings", () => {
           priceCents: 4500,
           images: {
             create: [
-              { url: IMG, sortOrder: 0 },
-              { url: IMG, sortOrder: 1 },
+              { url: IMG, sortOrder: 0, thumbnailUrl: expect.any(String) },
+              { url: IMG, sortOrder: 1, thumbnailUrl: expect.any(String) },
             ],
           },
         }),
@@ -220,6 +220,26 @@ describe("listing owner management", () => {
     expect(data).not.toHaveProperty("status");
     expect(data.images.deleteMany).toEqual({});
     expect(data.images.create).toHaveLength(2);
+  });
+  it("reuses the saved thumbnail of a photo kept on edit instead of making it again", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "ACTIVE" });
+    prisma.category.findUnique.mockResolvedValue({ id: "cat1" });
+    prisma.listing.update.mockResolvedValue({ id: "l1" });
+    prisma.listingImage.findMany.mockResolvedValueOnce([{ url: IMG, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" }]);
+    const response = await request(app).put("/api/listings/l1").set("Authorization", auth).send(validBody);
+    expect(response.status).toBe(200);
+    expect(prisma.listingImage.findMany).toHaveBeenCalledWith({ where: { listingId: "l1" }, select: { url: true, thumbnailUrl: true } });
+    expect(prisma.listing.update.mock.calls[0][0].data.images.create).toEqual([
+      { url: IMG, sortOrder: 0, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" },
+      { url: IMG, sortOrder: 1, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" },
+    ]);
+  });
+  it("leaves a cover with no usable thumbnail off the grid card", async () => {
+    prisma.listing.findMany.mockResolvedValue([{ id: "l1", images: [{ id: "i1", sortOrder: 0, thumbnailUrl: "" }] }]);
+    const res = await request(app).get("/api/listings").set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body[0].images).toEqual([]);
+    expect(prisma.listingImage.findMany).not.toHaveBeenCalled();
   });
   it("persists sold status and still allows the details page to display it", async () => {
     prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "SOLD" });

@@ -113,3 +113,24 @@ describe("event organizer chat", () => {
     expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("");
   });
 });
+
+describe("opening a chat", () => {
+  it("keeps a message that arrives live while the history is still loading", async () => {
+    let finishLoading: (value: unknown) => void = () => {};
+    get.mockReturnValue(new Promise((resolve) => { finishLoading = resolve; }));
+    patch.mockResolvedValue({ data: {} });
+    const conversation: ConversationDto = { id: "c1", type: "DIRECT", name: "Other Student", status: "ACCEPTED", isRequest: false, blockedByMe: false, studyGroupId: null, members: [{ id: "student", displayName: "Student", avatarUrl: null }, { id: "other", displayName: "Other Student", avatarUrl: null }], lastMessage: null, unreadCount: 0, updatedAt: "2026-11-01T12:00:00Z" };
+    render(<MemoryRouter><ChatWindow conversation={conversation} meId="student" onRead={vi.fn()} onConversationChanged={vi.fn()} /></MemoryRouter>);
+
+    // A new message is pushed over the socket before the history request returns
+    const onNew = socket.on.mock.calls.find(([event]) => event === "message:new")?.[1];
+    expect(onNew).toBeTypeOf("function");
+    act(() => onNew({ message: { id: "live", conversationId: "c1", senderId: "other", text: "Just sent this", attachments: [], clientId: null, createdAt: "2026-11-01T12:05:00Z" } }));
+
+    // The history was read on the server just before that message was saved
+    await act(async () => finishLoading({ data: { messages: [{ id: "old", conversationId: "c1", senderId: "other", text: "Earlier message", attachments: [], clientId: null, createdAt: "2026-11-01T12:00:00Z" }], hasMore: false, nextCursor: null } }));
+
+    expect(await screen.findByText("Earlier message")).toBeTruthy();
+    expect(screen.getByText("Just sent this")).toBeTruthy();
+  });
+});
