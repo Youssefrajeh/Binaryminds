@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import type { PrismaMock } from "./test/prismaMock.js";
@@ -54,10 +55,20 @@ describe("request size limits", () => {
   });
 
   it("does not read a large upload before the sender has signed in", async () => {
-    const res = await request(app).post("/api/listings").send({ title: "x".repeat(2 * 1024 * 1024) });
+    // Supertest asks for Connection: close by default. Node then closes the
+    // socket after the 401 while the upload is still arriving, and the client
+    // sees ECONNRESET. Browsers and Render's proxy keep the connection open,
+    // so the test does the same, on a server that stays up until it finishes.
+    const server = createServer(app).listen(0);
+    try {
+      const res = await request(server).post("/api/listings").set("Connection", "keep-alive")
+        .send({ title: "x".repeat(2 * 1024 * 1024) });
 
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Authentication required");
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("Authentication required");
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 
   it("accepts a large upload from a signed-in student", async () => {

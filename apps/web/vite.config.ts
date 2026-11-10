@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     css: false,
     clearMocks: true,
+    setupFiles: ['./src/test/setup.ts'],
   },
   server: {
     proxy: {
