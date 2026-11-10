@@ -18,9 +18,14 @@ export function EditProfilePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  // Kept apart from save errors: without the saved profile, the form would
+  // show blanks and saving would erase the student's details
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     async function loadProfile() {
+      setLoadError("");
       try {
         const res = await api.get("/profile/me");
         const data = res.data;
@@ -33,13 +38,13 @@ export function EditProfilePage() {
           setInterests(data.profile.interests || []);
         }
       } catch {
-        setError("Failed to load profile");
+        setLoadError("We couldn't load your profile, so it can't be edited right now.");
       } finally {
         setFetching(false);
       }
     }
     loadProfile();
-  }, []);
+  }, [loadAttempt]);
 
   function handleInterestKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if ((e.key === "Enter" || e.key === ",") && interestInput.trim()) {
@@ -103,6 +108,13 @@ export function EditProfilePage() {
         <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-8">
           {fetching ? (
             <p className="py-8 text-center text-sm text-muted">Loading profile…</p>
+          ) : loadError ? (
+            <div className="py-6 text-center">
+              <div role="alert" className="alert-error">{loadError}</div>
+              <button type="button" className="btn-secondary mt-4" onClick={() => { setFetching(true); setLoadAttempt((n) => n + 1); }}>
+                Try again
+              </button>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
           {error && (

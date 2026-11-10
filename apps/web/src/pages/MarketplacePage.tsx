@@ -101,9 +101,13 @@ export function MarketplacePage() {
         if (stale) return;
         const more = response.headers?.["x-has-more"] === "true";
         setHasMore(more);
-        setListings((current) =>
-          page > 1 ? [...current, ...response.data] : response.data,
-        );
+        setListings((current) => {
+          if (page === 1) return response.data;
+          // Pages are offsets, so a listing posted since the last page pushes
+          // an already-shown listing onto this one; show each listing once
+          const shown = new Set(current.map((listing) => listing.id));
+          return [...current, ...response.data.filter((listing) => !shown.has(listing.id))];
+        });
 
         // Only cache the first page of the unfiltered marketplace.
         if (unfiltered && page === 1) {

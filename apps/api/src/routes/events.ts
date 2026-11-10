@@ -5,6 +5,8 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRoles } from "../middleware/roles.middleware.js";
 import { photoSchema } from "../lib/photos.js";
+import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { eventThumbnails } from "../lib/photoThumbnails.js";
 
 export const eventsRouter = Router();
 eventsRouter.use(requireAuth);
@@ -21,13 +23,35 @@ const pageSchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
-const includeAttendance = (userId: string) => ({
+/** Every event field a card shows, with the thumbnail in place of the full photo */
+const eventCardSelect = {
+  id: true, organizerId: true, title: true, description: true, startsAt: true, endsAt: true,
+  endDate: true, location: true, status: true, thumbnailUrl: true,
   ...includeOrganizer,
+} satisfies Prisma.EventSelect;
+const cardWithAttendance = (userId: string) => ({
+  ...eventCardSelect,
   rsvps: { where: { userId }, select: { id: true } },
-});
-function withAttendance(event: Prisma.EventGetPayload<{ include: ReturnType<typeof includeAttendance> }>) {
-  const { rsvps, ...details } = event;
-  return { ...details, isRsvped: Boolean(rsvps?.length) };
+}) satisfies Prisma.EventSelect;
+
+type EventCardRow = Prisma.EventGetPayload<{ select: typeof eventCardSelect }>;
+
+/** Event lists send each photo as a thumbnail, under the usual imageUrl name */
+async function toCards<T extends EventCardRow>(rows: T[]) {
+  const thumbnails = await eventThumbnails(rows);
+  return rows.map(({ thumbnailUrl: _thumbnail, ...event }) => ({ ...event, imageUrl: thumbnails.get(event.id) ?? null }));
+}
+
+/** A single event with its full photo; the thumbnail is only for lists */
+function toEvent<T extends { thumbnailUrl?: string | null }>(event: T) {
+  const { thumbnailUrl: _thumbnail, ...details } = event;
+  return details;
+}
+
+/** The thumbnail to save with a create or edit; undefined leaves it unchanged */
+async function thumbnailFor(imageUrl: string | null | undefined) {
+  if (imageUrl === undefined) return undefined;
+  return imageUrl ? await thumbnailOrOriginal(imageUrl) : null;
 }
 const eventSchema = z
   .object({
@@ -72,12 +96,13 @@ eventsRouter.get("/", async (req, res) => {
     const rows = await prisma.event.findMany({
       where: { status: "PUBLISHED", startsAt: { gt: new Date() } },
       orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-      include: includeAttendance(req.user!.userId),
+      select: cardWithAttendance(req.user!.userId),
       skip: (page - 1) * limit,
       take: limit + 1,
     });
     res.set("X-Has-More", String(rows.length > limit));
-    res.json(rows.slice(0, limit).map(withAttendance));
+    const cards = await toCards(rows.slice(0, limit));
+    res.json(cards.map(({ rsvps, ...event }) => ({ ...event, isRsvped: Boolean(rsvps?.length) })));
   } catch (err) {
     console.error("Browse events error:", err);
     res.status(500).json({ error: "Could not load events" });
@@ -95,12 +120,12 @@ eventsRouter.get("/saved", async (req, res) => {
     const rows = await prisma.event.findMany({
       where: { rsvps: { some: { userId: req.user!.userId } }, status: { in: ["PUBLISHED", "CANCELLED"] } },
       orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-      include: includeOrganizer,
+      select: eventCardSelect,
       skip: (page - 1) * limit,
       take: limit + 1,
     });
     res.set("X-Has-More", String(rows.length > limit));
-    res.json(rows.slice(0, limit).map((event) => ({ ...event, isRsvped: true })));
+    res.json((await toCards(rows.slice(0, limit))).map((event) => ({ ...event, isRsvped: true })));
   } catch (err) {
     console.error("Saved events error:", err);
     res.status(500).json({ error: "Could not load saved events" });
@@ -160,12 +185,12 @@ eventsRouter.get("/mine", organizerOnly, async (req, res) => {
     const rows = await prisma.event.findMany({
       where: { organizerId: req.user!.userId },
       orderBy: [{ startsAt: "desc" }, { id: "desc" }],
-      include: includeOrganizer,
+      select: eventCardSelect,
       skip: (page - 1) * limit,
       take: limit + 1,
     });
     res.set("X-Has-More", String(rows.length > limit));
-    res.json(rows.slice(0, limit));
+    res.json(await toCards(rows.slice(0, limit)));
   } catch (err) {
     console.error("Manage events error:", err);
     res.status(500).json({ error: "Could not load your events" });
@@ -185,7 +210,7 @@ eventsRouter.get("/:id", async (req, res) => {
       res.status(404).json({ error: "Event not found" });
       return;
     }
-    res.json(event);
+    res.json(toEvent(event));
   } catch (err) {
     console.error("Get event error:", err);
     res.status(500).json({ error: "Could not load the event" });
@@ -209,12 +234,13 @@ eventsRouter.post("/", organizerOnly, async (req, res) => {
         ...parsed.data,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
+        thumbnailUrl: await thumbnailFor(parsed.data.imageUrl),
         organizerId: req.user!.userId,
         status: "PUBLISHED",
       },
       include: includeOrganizer,
     });
-    res.status(201).json(event);
+    res.status(201).json(toEvent(event));
   } catch (err) {
     console.error("Create event error:", err);
     res.status(500).json({ error: "Could not create the event" });
@@ -256,6 +282,7 @@ eventsRouter.put("/:id", organizerOnly, async (req, res) => {
         ...parsed.data,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
+        thumbnailUrl: await thumbnailFor(parsed.data.imageUrl),
       },
     });
     if (!changed.count) {
@@ -263,10 +290,10 @@ eventsRouter.put("/:id", organizerOnly, async (req, res) => {
       return;
     }
     res.json(
-      await prisma.event.findUniqueOrThrow({
+      toEvent(await prisma.event.findUniqueOrThrow({
         where: { id: existing.id },
         include: includeOrganizer,
-      }),
+      })),
     );
   } catch (err) {
     console.error("Update event error:", err);
@@ -290,11 +317,11 @@ eventsRouter.patch("/:id/cancel", organizerOnly, async (req, res) => {
       return;
     }
     res.json(
-      await prisma.event.update({
+      toEvent(await prisma.event.update({
         where: { id: existing.id },
         data: { status: "CANCELLED" },
         include: includeOrganizer,
-      }),
+      })),
     );
   } catch (err) {
     console.error("Cancel event error:", err);

@@ -11,6 +11,7 @@ export function createPrismaMock() {
     profile: { findUnique: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     category: { findMany: vi.fn(), findUnique: vi.fn() },
     listing: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    listingImage: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
     event: { findMany: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     rsvp: { upsert: vi.fn(), deleteMany: vi.fn() },
     lostFoundPost: { findMany: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },

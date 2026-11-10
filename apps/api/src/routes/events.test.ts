@@ -50,7 +50,7 @@ describe("event browsing", () => {
       expect.objectContaining({
         where: { status: "PUBLISHED", startsAt: { gt: expect.any(Date) } },
         orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-        include: expect.objectContaining({
+        select: expect.objectContaining({
           organizer: {
             select: {
               id: true,
@@ -149,7 +149,7 @@ describe("student RSVPs and saved events", () => {
     prisma.event.findMany.mockResolvedValue([{ id: "e1" }, { id: "e2" }, { id: "extra" }]);
     const response = await request(app).get("/api/events/saved?page=2&limit=2&userId=other").set("Authorization", auth);
     expect(response.status).toBe(200);
-    expect(response.body).toEqual([{ id: "e1", isRsvped: true }, { id: "e2", isRsvped: true }]);
+    expect(response.body).toEqual([{ id: "e1", imageUrl: null, isRsvped: true }, { id: "e2", imageUrl: null, isRsvped: true }]);
     expect(response.headers["x-has-more"]).toBe("true");
     expect(prisma.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { rsvps: { some: { userId: "org" } }, status: { in: ["PUBLISHED", "CANCELLED"] } },
@@ -165,8 +165,8 @@ describe("student RSVPs and saved events", () => {
   it("includes private attendance state without exposing RSVP rows", async () => {
     prisma.event.findMany.mockResolvedValue([{ id: "e1", rsvps: [{ id: "r1" }] }, { id: "e2", rsvps: [] }]);
     const response = await request(app).get("/api/events").set("Authorization", auth);
-    expect(response.body).toEqual([{ id: "e1", isRsvped: true }, { id: "e2", isRsvped: false }]);
-    expect(prisma.event.findMany.mock.calls[0][0].include.rsvps).toEqual({ where: { userId: "org" }, select: { id: true } });
+    expect(response.body).toEqual([{ id: "e1", imageUrl: null, isRsvped: true }, { id: "e2", imageUrl: null, isRsvped: false }]);
+    expect(prisma.event.findMany.mock.calls[0][0].select.rsvps).toEqual({ where: { userId: "org" }, select: { id: true } });
   });
 });
 

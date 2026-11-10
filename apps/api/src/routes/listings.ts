@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { Prisma } from "@prisma/client";
+import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { listingImageThumbnails } from "../lib/photoThumbnails.js";
 
 export const listingsRouter = Router();
 
@@ -15,9 +17,11 @@ const MAX_IMAGE_CHARS = 3 * 1024 * 1024;
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
+// Full-size photos for the details and edit pages; thumbnails stay server-side
+const fullImages = { orderBy: { sortOrder: "asc" }, select: { id: true, url: true, sortOrder: true } } satisfies Prisma.Listing$imagesArgs;
 const listingInclude = {
   category: true,
-  images: { orderBy: { sortOrder: "asc" } },
+  images: fullImages,
   seller: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } },
 } satisfies Prisma.ListingInclude;
 
@@ -54,6 +58,13 @@ const createListingSchema = z.object({
     )
     .max(5, "You can upload a maximum of 5 photos"),
 });
+
+/** Image rows to create, in order, each with its grid thumbnail */
+function withThumbnails(images: { url: string }[]) {
+  return Promise.all(images.map(async (image, sortOrder) => ({
+    url: image.url, sortOrder, thumbnailUrl: await thumbnailOrOriginal(image.url),
+  })));
+}
 
 listingsRouter.get("/categories", async (_req, res) => {
   try {
@@ -131,10 +142,12 @@ listingsRouter.get("/", async (req, res) => {
       take: limit + 1,
       include: {
         category: true,
-        // The grid only shows the cover photo; the details page loads the rest
+        // The grid only shows the cover, and only as a thumbnail; a page of
+        // full-size photos would be tens of megabytes
         images: {
           orderBy: { sortOrder: "asc" },
           take: 1,
+          select: { id: true, sortOrder: true, thumbnailUrl: true },
         },
         seller: {
           select: { id: true },
@@ -143,8 +156,13 @@ listingsRouter.get("/", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    const pageRows = rows.slice(0, limit);
+    const thumbnails = await listingImageThumbnails(pageRows.flatMap((listing) => listing.images));
     res.set("X-Has-More", rows.length > limit ? "true" : "false");
-    res.json(rows.slice(0, limit));
+    res.json(pageRows.map((listing) => ({
+      ...listing,
+      images: listing.images.map(({ thumbnailUrl: _thumbnail, ...image }) => ({ ...image, url: thumbnails.get(image.id) ?? "" })),
+    })));
   } catch (err) {
     console.error("Get listings error:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -159,11 +177,7 @@ listingsRouter.get("/:id", async (req, res) => {
       },
       include: {
         category: true,
-        images: {
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
+        images: fullImages,
         seller: {
           select: {
             id: true,
@@ -212,7 +226,7 @@ listingsRouter.put("/:id", async (req, res) => {
     // Nested updates atomically replace photos without exposing partial edits.
     const updated = await prisma.listing.update({
       where: { id: existing.id, sellerId: req.user!.userId, status: { not: "REMOVED" } },
-      data: { ...data, images: { deleteMany: {}, create: images.map((image, sortOrder) => ({ url: image.url, sortOrder })) } },
+      data: { ...data, images: { deleteMany: {}, create: await withThumbnails(images) } },
       include: listingInclude,
     });
     res.json(updated);
@@ -290,19 +304,12 @@ listingsRouter.post("/", async (req, res) => {
         priceCents,
         condition,
         images: {
-          create: images.map((image, index) => ({
-            url: image.url,
-            sortOrder: index,
-          })),
+          create: await withThumbnails(images),
         },
       },
       include: {
         category: true,
-        images: {
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
+        images: fullImages,
       },
     });
 

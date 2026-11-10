@@ -90,7 +90,7 @@ describe("GET /api/listings price filter and pagination", () => {
   });
 
   it("returns one page and flags that more exist", async () => {
-    prisma.listing.findMany.mockResolvedValue(Array.from({ length: 3 }, (_, i) => ({ id: `l${i}` })));
+    prisma.listing.findMany.mockResolvedValue(Array.from({ length: 3 }, (_, i) => ({ id: `l${i}`, images: [] })));
     const res = await request(app).get("/api/listings?page=2&limit=2").set("Authorization", auth);
     expect(res.body).toHaveLength(2);
     expect(res.headers["x-has-more"]).toBe("true");
@@ -100,7 +100,7 @@ describe("GET /api/listings price filter and pagination", () => {
   });
 
   it("flags the last page", async () => {
-    prisma.listing.findMany.mockResolvedValue([{ id: "l1" }]);
+    prisma.listing.findMany.mockResolvedValue([{ id: "l1", images: [] }]);
     const res = await request(app).get("/api/listings").set("Authorization", auth);
     expect(res.headers["x-has-more"]).toBe("false");
   });
@@ -161,8 +161,8 @@ describe("POST /api/listings", () => {
           priceCents: 4500,
           images: {
             create: [
-              { url: IMG, sortOrder: 0 },
-              { url: IMG, sortOrder: 1 },
+              { url: IMG, sortOrder: 0, thumbnailUrl: expect.any(String) },
+              { url: IMG, sortOrder: 1, thumbnailUrl: expect.any(String) },
             ],
           },
         }),

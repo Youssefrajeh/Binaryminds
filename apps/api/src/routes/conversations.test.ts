@@ -56,6 +56,8 @@ function membershipRow(conversation = directConversation()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Chat cards look up thumbnails for photos saved before they existed
+  prisma.event.findMany.mockResolvedValue([]);
   prisma.message.count.mockResolvedValue(0);
 });
 

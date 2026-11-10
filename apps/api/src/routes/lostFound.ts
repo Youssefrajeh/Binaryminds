@@ -8,6 +8,8 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { photoSchema } from "../lib/photos.js";
+import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { lostFoundThumbnails } from "../lib/photoThumbnails.js";
 
 export const lostFoundRouter = Router();
 lostFoundRouter.use(requireAuth);
@@ -56,10 +58,25 @@ const authorInclude = {
   },
 } satisfies Prisma.LostFoundPostInclude;
 
-function toPost(
-  post: Prisma.LostFoundPostGetPayload<{ include: typeof authorInclude }>,
-) {
-  return { ...post, category: post.category ?? "OTHER" };
+// The board shows photos small, so posts are read with their thumbnail and
+// never with the full photo
+const postCardSelect = {
+  id: true, authorId: true, kind: true, title: true, description: true, category: true,
+  location: true, occurredOn: true, status: true, createdAt: true, removedAt: true,
+  thumbnailUrl: true,
+  ...authorInclude,
+} satisfies Prisma.LostFoundPostSelect;
+
+type PostCardRow = Prisma.LostFoundPostGetPayload<{ select: typeof postCardSelect }>;
+
+/** Posts as the board shows them, with the thumbnail under the usual imageUrl name */
+async function toPosts(rows: PostCardRow[]) {
+  const thumbnails = await lostFoundThumbnails(rows);
+  return rows.map(({ thumbnailUrl: _thumbnail, ...post }) => ({
+    ...post,
+    category: post.category ?? "OTHER",
+    imageUrl: thumbnails.get(post.id) ?? null,
+  }));
 }
 
 lostFoundRouter.post("/", async (req, res) => {
@@ -79,11 +96,13 @@ lostFoundRouter.post("/", async (req, res) => {
         ...parsed.data,
         authorId: req.user!.userId,
         occurredOn: new Date(`${parsed.data.occurredOn}T00:00:00.000Z`),
+        thumbnailUrl: parsed.data.imageUrl ? await thumbnailOrOriginal(parsed.data.imageUrl) : null,
         status: "OPEN",
       },
-      include: authorInclude,
+      select: postCardSelect,
     });
-    res.status(201).json(toPost(post));
+    const [created] = await toPosts([post]);
+    res.status(201).json(created);
   } catch (err) {
     console.error("Create lost & found post error:", err);
     res
@@ -143,10 +162,10 @@ lostFoundRouter.get("/", async (req, res) => {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * limit,
       take: limit + 1,
-      include: authorInclude,
+      select: postCardSelect,
     });
     res.set("X-Has-More", String(rows.length > limit));
-    res.json(rows.slice(0, limit).map(toPost));
+    res.json(await toPosts(rows.slice(0, limit)));
   } catch (err) {
     console.error("List lost & found posts error:", err);
     res.status(500).json({ error: "Could not load posts. Please try again." });
@@ -170,9 +189,10 @@ lostFoundRouter.patch("/:id/resolve", async (req, res) => {
     const post = await prisma.lostFoundPost.update({
       where: { id: existing.id },
       data: { status: "RESOLVED" },
-      include: authorInclude,
+      select: postCardSelect,
     });
-    res.json(toPost(post));
+    const [resolved] = await toPosts([post]);
+    res.json(resolved);
   } catch (err) {
     console.error("Resolve lost & found post error:", err);
     res

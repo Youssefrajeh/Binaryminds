@@ -22,6 +22,8 @@ const validBody = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The board looks up thumbnails for photos saved before they existed
+  prisma.lostFoundPost.findMany.mockResolvedValue([]);
   vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-10-28T15:00:00Z"));
   vi.spyOn(console, "error").mockImplementation(() => {});
   auth = `Bearer ${signToken({ userId: "alice", role: "STUDENT" })}`;
@@ -51,9 +53,11 @@ describe("POST /api/lost-found", () => {
     expect(response.body.id).toBe("p1");
     expect(prisma.lostFoundPost.create).toHaveBeenCalledWith({
       data: { ...validBody, title: "Blue backpack", description: "Left after class", location: "Library, second floor",
-        kind, authorId: "alice", status: "OPEN", occurredOn: new Date("2026-10-01T00:00:00.000Z") },
-      include: { author: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } } },
+        kind, authorId: "alice", status: "OPEN", occurredOn: new Date("2026-10-01T00:00:00.000Z"), thumbnailUrl: expect.any(String) },
+      select: expect.objectContaining({ author: { select: { id: true, profile: { select: { displayName: true, avatarUrl: true } } } }, thumbnailUrl: true }),
     });
+    // The response is read without the full photo
+    expect(prisma.lostFoundPost.create.mock.calls[0][0].select).not.toHaveProperty("imageUrl");
   });
 
   it("allows a report without a photo", async () => {
