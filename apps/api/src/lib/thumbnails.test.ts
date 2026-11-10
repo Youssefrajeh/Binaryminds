@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { backfillThumbnails, makeThumbnail, THUMBNAIL_SIZE, thumbnailOrOriginal } from "./thumbnails.js";
+import { backfillThumbnails, makeThumbnail, MAX_FALLBACK_CHARS, NO_THUMBNAIL, THUMBNAIL_SIZE, thumbnailToStore } from "./thumbnails.js";
 
 async function png(width: number, height: number, pixel: (i: number) => number): Promise<string> {
   const pixels = Buffer.alloc(width * height * 3);
@@ -55,22 +55,28 @@ describe("makeThumbnail", () => {
     expect(await makeThumbnail("https://example.com/photo.png")).toBeNull();
   });
 
-  it("falls back to the original photo when no thumbnail can be made", async () => {
-    const broken = "data:image/jpeg;base64,/9j/AAAA";
-    expect(await thumbnailOrOriginal(broken)).toBe(broken);
+  it("keeps a small photo it cannot read, but never stores a large one as its thumbnail", async () => {
+    const small = "data:image/jpeg;base64,/9j/AAAA";
+    expect(await thumbnailToStore(small)).toBe(small);
+    const large = `data:image/jpeg;base64,/9j/${"A".repeat(MAX_FALLBACK_CHARS)}`;
+    expect(await thumbnailToStore(large)).toBe(NO_THUMBNAIL);
+    expect(await thumbnailToStore(null)).toBe(NO_THUMBNAIL);
   });
 });
 
 describe("backfillThumbnails", () => {
-  it("makes and saves a thumbnail only for rows that have a photo", async () => {
+  it("returns thumbnails only for rows with a usable photo and marks the rest as done", async () => {
     const original = await photo(1200, 1200);
     const save = vi.fn().mockResolvedValue(undefined);
 
-    const result = await backfillThumbnails(["a", "b"], async () => [{ id: "a", source: original }, { id: "b", source: null }], save);
+    const result = await backfillThumbnails(
+      ["a", "b", "c"],
+      async () => [{ id: "a", source: original }, { id: "b", source: null }, { id: "c", source: `data:image/jpeg;base64,/9j/${"A".repeat(MAX_FALLBACK_CHARS)}` }],
+      save,
+    );
 
     expect([...result.keys()]).toEqual(["a"]);
-    expect(save).toHaveBeenCalledOnce();
-    expect(save).toHaveBeenCalledWith("a", result.get("a"));
+    expect(save.mock.calls).toEqual([["a", result.get("a")], ["b", NO_THUMBNAIL], ["c", NO_THUMBNAIL]]);
   });
 
   it("still returns the thumbnail when saving it fails", async () => {

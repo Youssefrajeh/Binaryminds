@@ -130,11 +130,11 @@ export type ConversationWithMembers = Prisma.ConversationGetPayload<{ include: t
  */
 export async function withChatThumbnails(conversation: ConversationWithMembers): Promise<ConversationWithMembers> {
   const cover = conversation.listing?.images[0];
-  if (cover && !cover.thumbnailUrl) {
+  if (cover && cover.thumbnailUrl == null) {
     cover.thumbnailUrl = (await listingImageThumbnails([cover])).get(cover.id) ?? null;
   }
   const event = conversation.event;
-  if (event && !event.thumbnailUrl) {
+  if (event && event.thumbnailUrl == null) {
     event.thumbnailUrl = (await eventThumbnails([event])).get(event.id) ?? null;
   }
   return conversation;
@@ -169,12 +169,12 @@ export function toConversationDto(
       priceCents: conversation.listing.priceCents,
       condition: conversation.listing.condition,
       status: conversation.listing.status,
-      imageUrl: conversation.listing.images[0]?.thumbnailUrl ?? null,
+      imageUrl: conversation.listing.images[0]?.thumbnailUrl || null,
       sellerName: conversation.listing.seller.profile?.displayName || "campus-hub seller",
     } : null,
     event: conversation.event ? (({ thumbnailUrl, ...event }) => ({
       ...event,
-      imageUrl: thumbnailUrl ?? null,
+      imageUrl: thumbnailUrl || null,
       startsAt: event.startsAt.toISOString(),
       endsAt: event.endsAt?.toISOString() ?? null,
     }))(conversation.event) : null,

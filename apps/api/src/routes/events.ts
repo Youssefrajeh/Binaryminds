@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRoles } from "../middleware/roles.middleware.js";
 import { photoSchema } from "../lib/photos.js";
-import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { thumbnailToStore } from "../lib/thumbnails.js";
 import { eventThumbnails } from "../lib/photoThumbnails.js";
 
 export const eventsRouter = Router();
@@ -48,10 +48,13 @@ function toEvent<T extends { thumbnailUrl?: string | null }>(event: T) {
   return details;
 }
 
-/** The thumbnail to save with a create or edit; undefined leaves it unchanged */
-async function thumbnailFor(imageUrl: string | null | undefined) {
-  if (imageUrl === undefined) return undefined;
-  return imageUrl ? await thumbnailOrOriginal(imageUrl) : null;
+/**
+ * The thumbnail to save with a create or edit. Undefined leaves it unchanged:
+ * when no photo is sent, or when it is the photo already saved.
+ */
+async function thumbnailFor(imageUrl: string | null | undefined, savedImageUrl?: string | null) {
+  if (imageUrl === undefined || (savedImageUrl !== undefined && imageUrl === savedImageUrl)) return undefined;
+  return thumbnailToStore(imageUrl);
 }
 const eventSchema = z
   .object({
@@ -282,7 +285,7 @@ eventsRouter.put("/:id", organizerOnly, async (req, res) => {
         ...parsed.data,
         startsAt: new Date(parsed.data.startsAt),
         endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null,
-        thumbnailUrl: await thumbnailFor(parsed.data.imageUrl),
+        thumbnailUrl: await thumbnailFor(parsed.data.imageUrl, existing.imageUrl),
       },
     });
     if (!changed.count) {

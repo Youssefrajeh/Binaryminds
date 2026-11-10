@@ -31,15 +31,35 @@ export async function makeThumbnail(dataUrl: string): Promise<string | null> {
   }
 }
 
-/** The thumbnail to store next to a photo; falls back to the photo itself */
-export async function thumbnailOrOriginal(dataUrl: string): Promise<string> {
-  return (await makeThumbnail(dataUrl)) ?? dataUrl;
+/**
+ * Stored in thumbnailUrl when there is nothing to show: the row has no photo,
+ * or a large photo that cannot be read. It tells it apart from null, which means the
+ * thumbnail has not been made yet, so these rows are never looked at again.
+ */
+export const NO_THUMBNAIL = "";
+
+/**
+ * A photo the decoder rejects may still show in a browser. One this small is
+ * cheap to send in a list, so it stands in as its own thumbnail.
+ */
+export const MAX_FALLBACK_CHARS = 100 * 1024;
+
+/**
+ * The thumbnail to store next to a photo. When none can be made, a small
+ * photo is kept as it is and a large one gets NO_THUMBNAIL, so a list never
+ * carries a full-size photo.
+ */
+export async function thumbnailToStore(dataUrl: string | null | undefined): Promise<string> {
+  if (!dataUrl) return NO_THUMBNAIL;
+  const thumbnail = await makeThumbnail(dataUrl);
+  if (thumbnail) return thumbnail;
+  return dataUrl.length <= MAX_FALLBACK_CHARS ? dataUrl : NO_THUMBNAIL;
 }
 
 /**
- * Rows saved before thumbnails existed have a photo but no thumbnail. This
- * loads the full photo for just those rows, makes and saves each thumbnail
- * once, and returns them by row id. Later requests read the saved copy.
+ * Rows saved before thumbnails existed have no thumbnail. This loads the full
+ * photo for just those rows, makes and saves each thumbnail once, and returns
+ * the ones it made by row id. Later requests read the saved copy.
  */
 export async function backfillThumbnails(
   missingIds: string[],
@@ -50,9 +70,9 @@ export async function backfillThumbnails(
   if (missingIds.length === 0) return thumbnails;
   // One at a time, so a page of large photos never sits in memory at once
   for (const row of await loadOriginals(missingIds)) {
-    if (!row.source) continue;
-    const thumbnail = await thumbnailOrOriginal(row.source);
-    thumbnails.set(row.id, thumbnail);
+    // Rows without a usable photo are saved as NO_THUMBNAIL so they are not loaded again
+    const thumbnail = await thumbnailToStore(row.source);
+    if (thumbnail) thumbnails.set(row.id, thumbnail);
     // A failed save only means the next request makes the thumbnail again
     await Promise.resolve()
       .then(() => save(row.id, thumbnail))

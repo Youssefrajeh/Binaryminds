@@ -9,8 +9,9 @@ import { backfillThumbnails } from "./thumbnails.js";
 
 type WithThumbnail = { id: string; thumbnailUrl?: string | null };
 
+/** Rows whose thumbnail was never made; NO_THUMBNAIL ("") counts as made */
 function missing(rows: WithThumbnail[]) {
-  return rows.filter((row) => !row.thumbnailUrl).map((row) => row.id);
+  return rows.filter((row) => row.thumbnailUrl == null).map((row) => row.id);
 }
 
 async function resolve(
@@ -22,7 +23,7 @@ async function resolve(
   return new Map(rows.map((row) => [row.id, row.thumbnailUrl || created.get(row.id) || null]));
 }
 
-/** Thumbnails of listing photos (ListingImage rows) */
+/** Thumbnails of listing photos (ListingImage rows); unreadable photos map to null */
 export function listingImageThumbnails(images: WithThumbnail[]) {
   return resolve(
     images,
@@ -36,7 +37,7 @@ export function listingImageThumbnails(images: WithThumbnail[]) {
 export function eventThumbnails(events: WithThumbnail[]) {
   return resolve(
     events,
-    async (ids) => (await prisma.event.findMany({ where: { id: { in: ids }, imageUrl: { not: null } }, select: { id: true, imageUrl: true } }))
+    async (ids) => (await prisma.event.findMany({ where: { id: { in: ids } }, select: { id: true, imageUrl: true } }))
       .map((event) => ({ id: event.id, source: event.imageUrl })),
     (id, thumbnailUrl) => prisma.event.update({ where: { id }, data: { thumbnailUrl } }),
   );
@@ -46,7 +47,7 @@ export function eventThumbnails(events: WithThumbnail[]) {
 export function lostFoundThumbnails(posts: WithThumbnail[]) {
   return resolve(
     posts,
-    async (ids) => (await prisma.lostFoundPost.findMany({ where: { id: { in: ids }, imageUrl: { not: null } }, select: { id: true, imageUrl: true } }))
+    async (ids) => (await prisma.lostFoundPost.findMany({ where: { id: { in: ids } }, select: { id: true, imageUrl: true } }))
       .map((post) => ({ id: post.id, source: post.imageUrl })),
     (id, thumbnailUrl) => prisma.lostFoundPost.update({ where: { id }, data: { thumbnailUrl } }),
   );

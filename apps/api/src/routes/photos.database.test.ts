@@ -125,7 +125,7 @@ describe("event photos", () => {
     expect(edited.status).toBe(200);
     const stored = await prisma.event.findUniqueOrThrow({ where: { id: created.body.id } });
     expect(stored.imageUrl).toBeNull();
-    expect(stored.thumbnailUrl).toBeNull();
+    expect(stored.thumbnailUrl).toBe("");
   });
 
   it("shows the event's thumbnail, not the full photo, on the chat card", async () => {

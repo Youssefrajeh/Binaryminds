@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { Prisma } from "@prisma/client";
-import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { thumbnailToStore } from "../lib/thumbnails.js";
 import { listingImageThumbnails } from "../lib/photoThumbnails.js";
 
 export const listingsRouter = Router();
@@ -59,11 +59,20 @@ const createListingSchema = z.object({
     .max(5, "You can upload a maximum of 5 photos"),
 });
 
-/** Image rows to create, in order, each with its grid thumbnail */
-function withThumbnails(images: { url: string }[]) {
+/**
+ * Image rows to create, in order, each with its grid thumbnail. An edit sends
+ * back the photos it kept, so their saved thumbnails are reused, not made again.
+ */
+function withThumbnails(images: { url: string }[], saved = new Map<string, string>()) {
   return Promise.all(images.map(async (image, sortOrder) => ({
-    url: image.url, sortOrder, thumbnailUrl: await thumbnailOrOriginal(image.url),
+    url: image.url, sortOrder, thumbnailUrl: saved.get(image.url) ?? (await thumbnailToStore(image.url)),
   })));
+}
+
+/** The saved thumbnails of a listing's photos, by photo */
+async function savedThumbnails(listingId: string) {
+  const rows = await prisma.listingImage.findMany({ where: { listingId }, select: { url: true, thumbnailUrl: true } });
+  return new Map(rows.flatMap((row) => (row.thumbnailUrl == null ? [] : [[row.url, row.thumbnailUrl] as const])));
 }
 
 listingsRouter.get("/categories", async (_req, res) => {
@@ -161,7 +170,11 @@ listingsRouter.get("/", async (req, res) => {
     res.set("X-Has-More", rows.length > limit ? "true" : "false");
     res.json(pageRows.map((listing) => ({
       ...listing,
-      images: listing.images.map(({ thumbnailUrl: _thumbnail, ...image }) => ({ ...image, url: thumbnails.get(image.id) ?? "" })),
+      // A cover that cannot be shown is left out, so the card shows no photo
+      images: listing.images.flatMap(({ thumbnailUrl: _thumbnail, ...image }) => {
+        const url = thumbnails.get(image.id);
+        return url ? [{ ...image, url }] : [];
+      }),
     })));
   } catch (err) {
     console.error("Get listings error:", err);
@@ -226,7 +239,7 @@ listingsRouter.put("/:id", async (req, res) => {
     // Nested updates atomically replace photos without exposing partial edits.
     const updated = await prisma.listing.update({
       where: { id: existing.id, sellerId: req.user!.userId, status: { not: "REMOVED" } },
-      data: { ...data, images: { deleteMany: {}, create: await withThumbnails(images) } },
+      data: { ...data, images: { deleteMany: {}, create: await withThumbnails(images, await savedThumbnails(existing.id)) } },
       include: listingInclude,
     });
     res.json(updated);

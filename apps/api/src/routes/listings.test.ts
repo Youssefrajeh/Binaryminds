@@ -221,6 +221,26 @@ describe("listing owner management", () => {
     expect(data.images.deleteMany).toEqual({});
     expect(data.images.create).toHaveLength(2);
   });
+  it("reuses the saved thumbnail of a photo kept on edit instead of making it again", async () => {
+    prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "ACTIVE" });
+    prisma.category.findUnique.mockResolvedValue({ id: "cat1" });
+    prisma.listing.update.mockResolvedValue({ id: "l1" });
+    prisma.listingImage.findMany.mockResolvedValueOnce([{ url: IMG, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" }]);
+    const response = await request(app).put("/api/listings/l1").set("Authorization", auth).send(validBody);
+    expect(response.status).toBe(200);
+    expect(prisma.listingImage.findMany).toHaveBeenCalledWith({ where: { listingId: "l1" }, select: { url: true, thumbnailUrl: true } });
+    expect(prisma.listing.update.mock.calls[0][0].data.images.create).toEqual([
+      { url: IMG, sortOrder: 0, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" },
+      { url: IMG, sortOrder: 1, thumbnailUrl: "data:image/webp;base64,c2F2ZWQ=" },
+    ]);
+  });
+  it("leaves a cover with no usable thumbnail off the grid card", async () => {
+    prisma.listing.findMany.mockResolvedValue([{ id: "l1", images: [{ id: "i1", sortOrder: 0, thumbnailUrl: "" }] }]);
+    const res = await request(app).get("/api/listings").set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body[0].images).toEqual([]);
+    expect(prisma.listingImage.findMany).not.toHaveBeenCalled();
+  });
   it("persists sold status and still allows the details page to display it", async () => {
     prisma.listing.findUnique.mockResolvedValue({ id: "l1", sellerId: "alice", status: "SOLD" });
     prisma.listing.update.mockResolvedValue({ id: "l1", status: "SOLD" });

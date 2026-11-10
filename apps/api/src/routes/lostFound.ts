@@ -8,7 +8,7 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { photoSchema } from "../lib/photos.js";
-import { thumbnailOrOriginal } from "../lib/thumbnails.js";
+import { thumbnailToStore } from "../lib/thumbnails.js";
 import { lostFoundThumbnails } from "../lib/photoThumbnails.js";
 
 export const lostFoundRouter = Router();
@@ -96,7 +96,7 @@ lostFoundRouter.post("/", async (req, res) => {
         ...parsed.data,
         authorId: req.user!.userId,
         occurredOn: new Date(`${parsed.data.occurredOn}T00:00:00.000Z`),
-        thumbnailUrl: parsed.data.imageUrl ? await thumbnailOrOriginal(parsed.data.imageUrl) : null,
+        thumbnailUrl: await thumbnailToStore(parsed.data.imageUrl),
         status: "OPEN",
       },
       select: postCardSelect,

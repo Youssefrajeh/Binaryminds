@@ -266,7 +266,22 @@ describe("organizer actions", () => {
     prisma.event.updateMany.mockResolvedValue({ count: 1 });
     prisma.event.findUniqueOrThrow.mockResolvedValue({ id: "e1" });
     expect((await request(app).put("/api/events/e1").set("Authorization", auth).send({ ...body, endsAt: null, endDate: null, imageUrl: null })).status).toBe(200);
-    expect(prisma.event.updateMany.mock.calls[0][0].data).toMatchObject({ endsAt: null, endDate: null, imageUrl: null });
+    expect(prisma.event.updateMany.mock.calls[0][0].data).toMatchObject({ endsAt: null, endDate: null, imageUrl: null, thumbnailUrl: "" });
+  });
+  it("keeps the saved thumbnail when an edit keeps the same photo", async () => {
+    const imageUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4WQAAAAASUVORK5CYII=";
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", organizerId: "org", status: "PUBLISHED", startsAt: new Date(body.startsAt), imageUrl });
+    prisma.event.updateMany.mockResolvedValue({ count: 1 });
+    prisma.event.findUniqueOrThrow.mockResolvedValue({ id: "e1" });
+    expect((await request(app).put("/api/events/e1").set("Authorization", auth).send({ ...body, imageUrl })).status).toBe(200);
+    expect(prisma.event.updateMany.mock.calls[0][0].data.thumbnailUrl).toBeUndefined();
+  });
+  it("does not look up the photo again for events already marked as having none", async () => {
+    prisma.event.findMany.mockResolvedValue([{ id: "e1", thumbnailUrl: "", rsvps: [] }]);
+    const response = await request(app).get("/api/events").set("Authorization", auth);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{ id: "e1", imageUrl: null, isRsvped: false }]);
+    expect(prisma.event.findMany).toHaveBeenCalledOnce();
   });
   it.each(["put", "patch"] as const)(
     "prevents %s against another organizer's event",
