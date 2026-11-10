@@ -40,12 +40,6 @@ const eventSchema = z
     imageUrl: photoSchema.nullable().optional(),
   })
   .superRefine(({ startsAt, endsAt, endDate }, ctx) => {
-    if (Date.parse(startsAt) <= Date.now())
-      ctx.addIssue({
-        code: "custom",
-        message: "The event must start in the future",
-        path: ["startsAt"],
-      });
     if (endsAt && Date.parse(endsAt) <= Date.parse(startsAt))
       ctx.addIssue({
         code: "custom",
@@ -57,6 +51,15 @@ const eventSchema = z
     if (endDate && endsAt && endDate !== endsAt.slice(0, 10))
       ctx.addIssue({ code: "custom", message: "End date and end time must refer to the same day", path: ["endDate"] });
   });
+
+const FUTURE_START_ERROR = "The event must start in the future";
+
+// New events must start in the future. Edits only need that when the start
+// time moves, so an organizer can still fix the details of a running event.
+const createEventSchema = eventSchema.superRefine(({ startsAt }, ctx) => {
+  if (Date.parse(startsAt) <= Date.now())
+    ctx.addIssue({ code: "custom", message: FUTURE_START_ERROR, path: ["startsAt"] });
+});
 
 eventsRouter.get("/", async (req, res) => {
   const parsed = pageSchema.safeParse(req.query);
@@ -190,7 +193,7 @@ eventsRouter.get("/:id", async (req, res) => {
 });
 
 eventsRouter.post("/", organizerOnly, async (req, res) => {
-  const parsed = eventSchema.safeParse(req.body);
+  const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {
     res
       .status(400)
@@ -236,6 +239,11 @@ eventsRouter.put("/:id", organizerOnly, async (req, res) => {
     }
     if (existing.organizerId !== req.user!.userId) {
       res.status(403).json({ error: "Only the event's organizer can edit it" });
+      return;
+    }
+    const startsAt = Date.parse(parsed.data.startsAt);
+    if (startsAt !== existing.startsAt.getTime() && startsAt <= Date.now()) {
+      res.status(400).json({ error: FUTURE_START_ERROR });
       return;
     }
     const changed = await prisma.event.updateMany({

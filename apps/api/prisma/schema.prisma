@@ -88,6 +88,8 @@ model User {
   termsAcceptedAt DateTime?
   otpHash         String?
   otpExpiresAt    DateTime?
+  // Login tokens issued before this moment are rejected, so a password reset signs out every device.
+  passwordChangedAt DateTime?
   // Set while status is SUSPENDED; the reason is shown to the student when they try to sign in.
   suspendedAt     DateTime?
   suspendedReason String?

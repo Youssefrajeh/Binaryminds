@@ -96,7 +96,9 @@ export function ChatWindow({ conversation, meId, onRead, onConversationChanged }
       .then((res) => {
         if (cancelled) return;
         stickToBottom.current = true;
-        setMessages(res.data.messages);
+        // Merge rather than replace: a message sent or received while this page
+        // was loading is already in the list and may not be in the response
+        setMessages((list) => res.data.messages.reduce(upsert, list));
         setHasMore(res.data.hasMore);
         setCursor(res.data.nextCursor);
         loadedOnce.current = true;

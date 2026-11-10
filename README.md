@@ -160,6 +160,8 @@ Run these from the repository root.
 | `npm run typecheck` | Type-checks all workspaces |
 | `npm run lint` | Lints all workspaces |
 | `npm test` | Runs all tests |
+| `npm run test:e2e` | Runs the Cypress end-to-end tests (start `npm run dev:web` first; the API is stubbed, so no database is needed) |
+| `npm run cy:open -w @campushub/web` | Opens the Cypress test runner to watch or debug the end-to-end tests |
 | `npm run prisma:generate -w @campushub/api` | Regenerates the Prisma client after a schema change |
 | `npm run prisma:push -w @campushub/api` | Applies schema changes to the database |
 | `npm run admin:bootstrap -w @campushub/api -- <email>` | Promotes the first administrator |

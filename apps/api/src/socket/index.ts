@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { prisma } from "../lib/prisma.js";
-import { verifyToken } from "../lib/jwt.js";
+import { activeSessionWhere, verifyToken, type VerifiedToken } from "../lib/jwt.js";
 import { corsOptions } from "../lib/cors.js";
 import { findMembership, toMessageDto } from "../lib/conversations.js";
 import { MessageError, sendMessage } from "../lib/messages.js";
@@ -32,17 +32,18 @@ export function createSocketServer(httpServer: HttpServer) {
       return;
     }
 
-    let userId: string;
+    let payload: VerifiedToken;
     try {
-      userId = verifyToken(token).userId;
+      payload = verifyToken(token);
     } catch {
       next(new Error("Invalid or expired token"));
       return;
     }
+    const userId = payload.userId;
 
     try {
-      // Suspended or deleted accounts keep valid tokens, so check the account too
-      if ((await prisma.user.count({ where: { id: userId, status: "ACTIVE" } })) === 0) {
+      // Suspended, deleted or password-reset accounts keep valid tokens, so check the account too
+      if ((await prisma.user.count({ where: activeSessionWhere(payload) })) === 0) {
         next(new Error("Account is not active"));
         return;
       }

@@ -353,6 +353,7 @@ describe("GET /api/conversations/:id/messages", () => {
 describe("PATCH /api/conversations/:id/accept", () => {
   it("lets the recipient accept a pending request", async () => {
     prisma.participant.findUnique.mockResolvedValue(membershipRow());
+    prisma.participant.findMany.mockResolvedValue([{ userId: ALICE }, { userId: BOB }]);
 
     const res = await request(app).patch("/api/conversations/c1/accept").set("Authorization", aliceAuth);
 
