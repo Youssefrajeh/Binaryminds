@@ -262,7 +262,7 @@ describe("organizer actions", () => {
     prisma.event.create.mockResolvedValue({ id: "e1" });
     expect((await request(app).post("/api/events").set("Authorization", auth).send({ ...body, imageUrl })).status).toBe(201);
     expect(prisma.event.create.mock.calls[0][0].data.imageUrl).toBe(imageUrl);
-    prisma.event.findUnique.mockResolvedValue({ id: "e1", organizerId: "org", status: "PUBLISHED" });
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", organizerId: "org", status: "PUBLISHED", startsAt: new Date(body.startsAt) });
     prisma.event.updateMany.mockResolvedValue({ count: 1 });
     prisma.event.findUniqueOrThrow.mockResolvedValue({ id: "e1" });
     expect((await request(app).put("/api/events/e1").set("Authorization", auth).send({ ...body, endsAt: null, endDate: null, imageUrl: null })).status).toBe(200);
@@ -291,6 +291,7 @@ describe("organizer actions", () => {
       id: "e1",
       organizerId: "org",
       status: "PUBLISHED",
+      startsAt: new Date(body.startsAt),
     });
     prisma.event.updateMany.mockResolvedValue({ count: 1 });
     prisma.event.findUniqueOrThrow.mockResolvedValue({
@@ -309,11 +310,34 @@ describe("organizer actions", () => {
       "organizerId",
     );
   });
+  it("lets the organizer fix the details of an event that has already started", async () => {
+    const startedAt = new Date(Date.now() - 3_600_000);
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", organizerId: "org", status: "PUBLISHED", startsAt: startedAt });
+    prisma.event.updateMany.mockResolvedValue({ count: 1 });
+    prisma.event.findUniqueOrThrow.mockResolvedValue({ id: "e1" });
+
+    const res = await request(app).put("/api/events/e1").set("Authorization", auth)
+      .send({ ...body, description: "Room changed to SC1001", startsAt: startedAt.toISOString(), endsAt: null, endDate: null });
+
+    expect(res.status).toBe(200);
+    expect(prisma.event.updateMany.mock.calls[0][0].data.description).toBe("Room changed to SC1001");
+  });
+  it("still refuses to move an event's start into the past", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: "e1", organizerId: "org", status: "PUBLISHED", startsAt: new Date(body.startsAt) });
+
+    const res = await request(app).put("/api/events/e1").set("Authorization", auth)
+      .send({ ...body, startsAt: "2020-01-01T18:00:00Z", endsAt: null, endDate: null });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("The event must start in the future");
+    expect(prisma.event.updateMany).not.toHaveBeenCalled();
+  });
   it("refuses edits to cancelled events", async () => {
     prisma.event.findUnique.mockResolvedValue({
       id: "e1",
       organizerId: "org",
       status: "CANCELLED",
+      startsAt: new Date(body.startsAt),
     });
     prisma.event.updateMany.mockResolvedValue({ count: 0 });
     expect(

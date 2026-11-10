@@ -365,6 +365,10 @@ conversationsRouter.patch("/:id/accept", async (req, res) => {
       data: { status: "ACCEPTED" },
     });
 
+    // The requester's chat drops its "waiting for them to accept" state without a reload
+    const members = await prisma.participant.findMany({ where: { conversationId: conversation.id }, select: { userId: true } });
+    emitToUsers(members.map((member) => member.userId), "conversation:updated", { conversationId: conversation.id });
+
     res.json({ message: "Request accepted" });
   } catch (err) {
     console.error("Accept conversation error:", err);
